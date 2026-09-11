@@ -1,0 +1,22 @@
+{
+  "order_id": "PO-DEMO-1",
+  "supplier_id": "SUP-009",
+  "customer_id": "CUS-011",
+  "sku": "SKU-0042",
+  "plant": "PHX",
+  "order_date": "2026-09-01",
+  "promised_date": "2026-09-12",
+  "current_eta": "2026-09-20",
+  "ordered_qty": 100,
+  "confirmed_qty": 100,
+  "received_qty": 0,
+  "on_hand": 250,
+  "allocated": 20,
+  "safety_stock": 10,
+  "unit_price": 48.50,
+  "contract_price": 48.50,
+  "currency": "USD",
+  "customer_priority": "CRITICAL",
+  "supplier_risk": "HIGH",
+  "order_status": "CONFIRMED"
+}

@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+node_modules
+outputs/**/*.png
+outputs/**/*.inspect.ndjson
+.DS_Store
