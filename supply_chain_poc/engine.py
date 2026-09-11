@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
+from supply_chain_poc.observability import record_decision, span
+
 
 PRIORITY_WEIGHT = {"STANDARD": 1.0, "HIGH": 1.4, "CRITICAL": 2.0}
 RISK_WEIGHT = {"LOW": 1.0, "MEDIUM": 1.2, "HIGH": 1.5}
@@ -85,10 +87,12 @@ def _recommendation(issue_type: str, severity: str) -> tuple[str, bool]:
     return actions[issue_type], severity in {"HIGH", "CRITICAL"} or issue_type == "PRICE_MISMATCH"
 
 
-def triage_order(order: dict) -> dict:
-    issues = detect_exceptions(order)
+def _triage_order(order: dict) -> dict:
+    order_id = order.get("order_id")
+    with span("agent.classification", order_id=order_id):
+        issues = detect_exceptions(order)
     if not issues:
-        return {
+        result = {
             "order_id": order.get("order_id"),
             "exception_type": "NO_EXCEPTION",
             "severity": "NONE",
@@ -99,15 +103,21 @@ def triage_order(order: dict) -> dict:
             "requires_approval": False,
             "all_exceptions": [],
         }
+        audit_event = record_decision(result)
+        result["decision_id"] = audit_event["decision_id"]
+        result["policy_version"] = audit_event["policy_version"]
+        return result
 
-    ranked = []
-    for issue in issues:
-        severity, score = _severity(order, issue)
-        ranked.append((score, severity, issue))
-    score, severity, primary = max(ranked, key=lambda item: item[0])
-    action, approval = _recommendation(primary["type"], severity)
+    with span("agent.severity", order_id=order_id, exception_count=len(issues)):
+        ranked = []
+        for issue in issues:
+            severity, score = _severity(order, issue)
+            ranked.append((score, severity, issue))
+        score, severity, primary = max(ranked, key=lambda item: item[0])
+    with span("agent.recommendation", order_id=order_id, exception_type=primary["type"]):
+        action, approval = _recommendation(primary["type"], severity)
     evidence = [f"{key.replace('_', ' ')}: {value}" for key, value in primary.items() if key != "type"]
-    return {
+    result = {
         "order_id": order.get("order_id"),
         "exception_type": primary["type"],
         "severity": severity,
@@ -118,8 +128,22 @@ def triage_order(order: dict) -> dict:
         "requires_approval": approval,
         "all_exceptions": [issue["type"] for _, _, issue in sorted(ranked, reverse=True)],
     }
+    audit_event = record_decision(result)
+    result["decision_id"] = audit_event["decision_id"]
+    result["policy_version"] = audit_event["policy_version"]
+    return result
+
+
+def triage_order(order: dict) -> dict:
+    order_id = order.get("order_id")
+    with span("agent.order", order_id=order_id) as active_span:
+        result = _triage_order(order)
+        active_span.set_attribute("exception_type", result["exception_type"])
+        active_span.set_attribute("severity", result["severity"])
+        active_span.set_attribute("requires_approval", result["requires_approval"])
+        return result
 
 
 def triage_orders(orders: list[dict]) -> list[dict]:
-    return [triage_order(order) for order in orders]
-
+    with span("agent.batch", order_count=len(orders)):
+        return [triage_order(order) for order in orders]

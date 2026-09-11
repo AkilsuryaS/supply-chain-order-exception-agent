@@ -28,6 +28,8 @@ Synthetic ERP data / future ERP connector
                  |
                  v
        Human approval decision
+
+Every stage emits correlated traces, metrics, structured logs, and decision audit events.
 ```
 
 This project demonstrates a three-stage workflow:
@@ -62,9 +64,13 @@ In another terminal:
 
 ```bash
 curl 'http://127.0.0.1:8000/health'
+curl 'http://127.0.0.1:8000/ready'
 curl 'http://127.0.0.1:8000/erp/orders?limit=3'
 curl 'http://127.0.0.1:8000/agent/exceptions'
 curl 'http://127.0.0.1:8000/erp/orders?expected_exception=LATE_SHIPMENT&limit=5'
+curl 'http://127.0.0.1:8000/metrics'
+curl 'http://127.0.0.1:8000/observability/traces?limit=10'
+curl 'http://127.0.0.1:8000/observability/audit?limit=10'
 ```
 
 To classify a record supplied by another system:
@@ -80,10 +86,25 @@ curl -X POST 'http://127.0.0.1:8000/agent/triage' \
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | GET | `/health` | Service health check |
+| GET | `/ready` | Data-source readiness check |
+| GET | `/metrics` | Prometheus-format service and agent metrics |
 | GET | `/erp/orders` | Mock ERP order feed; supports `limit` and `expected_exception` |
 | GET | `/erp/orders/{order_id}` | Retrieve one order |
 | GET | `/agent/exceptions` | Run the complete POC pipeline over the mock feed |
 | POST | `/agent/triage` | Classify and recommend an action for one supplied order |
+| GET | `/observability/traces` | Inspect recent correlated spans |
+| GET | `/observability/audit` | Inspect recent decision audit events |
+
+## Observability
+
+The POC includes dependency-light implementations of four complementary signals:
+
+- Structured JSON logs written to stdout
+- W3C-compatible trace IDs with nested spans for data pull, classification, severity, and recommendation
+- Prometheus text metrics for HTTP traffic, stage latency, data pulls, and agent decisions
+- Decision audit events containing the policy version and approval boundary
+
+Send `X-Request-ID` or a valid W3C `traceparent` header to continue an upstream correlation context. Both identifiers are returned with the response. Read the [system design](docs/system-design.md) and [observability design](docs/observability.md) for component boundaries, failure behavior, signal definitions, cardinality controls, proposed service-level indicators, privacy boundaries, and the OpenTelemetry production path.
 
 ## Why synthetic data first
 
@@ -116,7 +137,8 @@ python -m unittest discover -s tests -v
 - Externalize policies and thresholds into configuration.
 - Capture reviewer decisions and measure recommendation acceptance.
 - Compare deterministic rules with a supervised model trained on labeled decisions.
-- Add authentication, persistence, observability, and container deployment.
+- Add authentication, durable decision storage, and container deployment.
+- Replace in-memory trace and audit buffers with OpenTelemetry and durable storage.
 
 ## Repository layout
 
@@ -127,6 +149,7 @@ outputs/               Formatted data workbook
 scripts/               Workbook-generation utility
 supply_chain_poc/      Generator, rule engine, and mock API
 tests/                 Repeatable rule-engine tests
+docs/                  System-design and observability notes
 ```
 
 ## Responsible-use note
