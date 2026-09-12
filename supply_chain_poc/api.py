@@ -34,6 +34,7 @@ from supply_chain_poc.observability import (
 
 
 DATA_FILE = Path("data/synthetic_orders.csv")
+WEB_DIR = Path(__file__).parent / "web"
 
 
 def load_orders() -> list[dict]:
@@ -50,10 +51,14 @@ def load_orders() -> list[dict]:
 
 
 def route_template(path: str) -> str:
+    if path.startswith("/assets/"):
+        return "/assets/{asset}"
     if path.startswith("/erp/orders/"):
         return "/erp/orders/{order_id}"
     known = {
         "/health",
+        "/",
+        "/preview",
         "/ready",
         "/metrics",
         "/erp/orders",
@@ -76,6 +81,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(length))
         self.send_header("X-Request-ID", self.request_id)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; "
+            "img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+        )
         trace_id = current_trace_id()
         span_id = current_span_id()
         if trace_id and span_id:
@@ -92,6 +104,15 @@ class Handler(BaseHTTPRequestHandler):
         self._headers(content_type, len(body), HTTPStatus.OK)
         self.wfile.write(body)
 
+    def _file(self, path: Path, content_type: str) -> None:
+        try:
+            body = path.read_bytes()
+        except OSError:
+            self._json({"error": "Preview asset not found"}, HTTPStatus.NOT_FOUND)
+            return
+        self._headers(content_type, len(body), HTTPStatus.OK)
+        self.wfile.write(body)
+
     @staticmethod
     def _limit(query: dict[str, list[str]], default: int = 50) -> int:
         try:
@@ -103,6 +124,15 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
 
+        if parsed.path in {"/", "/preview", "/agent/llm-triage"}:
+            self._file(WEB_DIR / "index.html", "text/html; charset=utf-8")
+            return
+        if parsed.path == "/assets/app.css":
+            self._file(WEB_DIR / "app.css", "text/css; charset=utf-8")
+            return
+        if parsed.path == "/assets/app.js":
+            self._file(WEB_DIR / "app.js", "text/javascript; charset=utf-8")
+            return
         if parsed.path == "/health":
             self._json({"status": "ok", "service": SERVICE_NAME, "version": __version__})
             return

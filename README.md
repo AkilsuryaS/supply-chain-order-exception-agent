@@ -60,6 +60,8 @@ python -m unittest discover -s tests -v
 python -m supply_chain_poc.api --port 8000
 ```
 
+Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the interactive study-project preview. The deterministic baseline works without credentials. The LLM investigation button requires the optional dependency and API key below.
+
 To enable the real LLM agentic workflow:
 
 ```bash
@@ -97,6 +99,7 @@ curl -X POST 'http://127.0.0.1:8000/agent/triage' \
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
+| GET | `/`, `/preview`, `/agent/llm-triage` | Open the interactive browser preview |
 | GET | `/health` | Service health check |
 | GET | `/ready` | Data-source readiness check |
 | GET | `/metrics` | Prometheus-format service and agent metrics |

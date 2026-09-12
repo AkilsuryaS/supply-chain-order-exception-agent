@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Supply-chain order exception agent preview" />
+    <title>Supply Chain Exception Agent</title>
+    <link rel="stylesheet" href="/assets/app.css" />
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Supply Chain Exception Agent home">
+          <span class="brand-mark">SC</span>
+          <span>
+            <strong>Exception Agent</strong>
+            <small>Decision-support POC</small>
+          </span>
+        </a>
+        <div class="service-state" aria-live="polite">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="service-status">Checking service</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div>
+            <p class="eyebrow">Supply-chain control tower</p>
+            <h1>Investigate an order exception</h1>
+            <p class="hero-copy">
+              Compare the deterministic rules with the guarded LLM tool-calling workflow. The agent can investigate and propose an action, while policies retain control of classification and approval.
+            </p>
+          </div>
+          <div class="architecture-card" aria-label="Agent workflow">
+            <span>ERP order</span><b>→</b><span>Agent tools</span><b>→</b><span>Guardrails</span><b>→</b><span>Human review</span>
+          </div>
+        </section>
+
+        <section class="workspace-grid">
+          <form class="panel form-panel" id="triage-form">
+            <div class="panel-heading">
+              <div>
+                <p class="step">Investigation input</p>
+                <h2>Order context</h2>
+              </div>
+              <span class="read-only-pill">Read only</span>
+            </div>
+
+            <label for="order-id">Order ID</label>
+            <input id="order-id" name="order_id" value="PO-10004" maxlength="128" required />
+            <p class="field-help">Try PO-10004 for a late shipment or PO-10005 for an inventory shortage.</p>
+
+            <label for="planner-notes">Planner notes</label>
+            <textarea id="planner-notes" name="planner_notes" rows="6" maxlength="4000">The customer launch depends on this order. The supplier has not yet provided a recovery date.</textarea>
+            <p class="field-help">Notes are treated as untrusted context and cannot override policy.</p>
+
+            <div class="button-stack">
+              <button class="button button-primary" type="submit" id="llm-button">
+                <span>Run LLM investigation</span>
+                <span aria-hidden="true">→</span>
+              </button>
+              <button class="button button-secondary" type="button" id="rules-button">Run deterministic baseline</button>
+            </div>
+          </form>
+
+          <section class="panel result-panel" aria-live="polite" aria-busy="false" id="result-panel">
+            <div class="empty-state" id="empty-state">
+              <span class="empty-icon">◎</span>
+              <h2>Ready to investigate</h2>
+              <p>Choose an execution mode to view the exception, evidence, recommendation, approval boundary, and trace context.</p>
+            </div>
+
+            <div class="loading-state hidden" id="loading-state">
+              <span class="spinner"></span>
+              <h2>Running investigation</h2>
+              <p id="loading-message">The agent is gathering evidence and checking policy.</p>
+            </div>
+
+            <div class="error-state hidden" id="error-state">
+              <span class="error-label">Request failed</span>
+              <h2 id="error-title">Unable to run investigation</h2>
+              <p id="error-message"></p>
+              <p class="error-hint hidden" id="error-hint">Configure <code>OPENAI_API_KEY</code> and install <code>.[llm]</code>, or use the deterministic baseline.</p>
+            </div>
+
+            <div class="decision hidden" id="decision">
+              <div class="decision-header">
+                <div>
+                  <p class="step" id="result-mode">Agent result</p>
+                  <h2 id="result-summary">Order exception</h2>
+                </div>
+                <span class="severity" id="result-severity">HIGH</span>
+              </div>
+
+              <div class="metric-grid">
+                <div><span>Exception</span><strong id="result-exception"></strong></div>
+                <div><span>Action code</span><strong id="result-action-code"></strong></div>
+                <div><span>Approval</span><strong id="result-approval"></strong></div>
+                <div><span>Confidence</span><strong id="result-confidence"></strong></div>
+              </div>
+
+              <div class="result-section">
+                <h3>Recommended action</h3>
+                <p id="result-action"></p>
+              </div>
+              <div class="result-section">
+                <h3>Evidence</h3>
+                <ul id="result-evidence"></ul>
+              </div>
+              <div class="result-section trace-summary">
+                <h3>Decision trace</h3>
+                <dl>
+                  <div><dt>Decision ID</dt><dd id="result-decision-id"></dd></div>
+                  <div><dt>Policy</dt><dd id="result-policy"></dd></div>
+                  <div><dt>Model</dt><dd id="result-model"></dd></div>
+                  <div><dt>Tools</dt><dd id="result-tools"></dd></div>
+                </dl>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <nav class="telemetry-links" aria-label="Operational endpoints">
+          <a href="/metrics" target="_blank" rel="noreferrer"><span>Metrics</span><small>Prometheus signal output</small></a>
+          <a href="/observability/traces?limit=20" target="_blank" rel="noreferrer"><span>Traces</span><small>Recent correlated spans</small></a>
+          <a href="/observability/audit?limit=20" target="_blank" rel="noreferrer"><span>Audit</span><small>Versioned decisions</small></a>
+          <a href="/erp/orders?limit=10" target="_blank" rel="noreferrer"><span>Mock ERP</span><small>Sample source orders</small></a>
+        </nav>
+      </main>
+    </div>
+  </body>
+</html>
