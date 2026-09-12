@@ -12,6 +12,12 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from supply_chain_poc import __version__
+from supply_chain_poc.agentic.runtime import (
+    AgentConfigurationError,
+    AgentRunError,
+    OpenAIResponseAgent,
+    ProposalGuardrailError,
+)
 from supply_chain_poc.engine import triage_order, triage_orders
 from supply_chain_poc.observability import (
     AUDIT_EVENTS,
@@ -53,6 +59,7 @@ def route_template(path: str) -> str:
         "/erp/orders",
         "/agent/exceptions",
         "/agent/triage",
+        "/agent/llm-triage",
         "/observability/traces",
         "/observability/audit",
     }
@@ -143,13 +150,23 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
 
     def _dispatch_post(self) -> None:
-        if urlparse(self.path).path != "/agent/triage":
+        path = urlparse(self.path).path
+        if path not in {"/agent/triage", "/agent/llm-triage"}:
             self._json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            order = json.loads(self.rfile.read(length))
-            self._json(triage_order(order))
+            payload = json.loads(self.rfile.read(length))
+            if path == "/agent/triage":
+                self._json(triage_order(payload))
+                return
+            agent = OpenAIResponseAgent.from_env()
+            result = agent.run(payload.get("order_id", ""), payload.get("planner_notes", ""))
+            self._json(result)
+        except AgentConfigurationError as exc:
+            self._json({"error": str(exc)}, HTTPStatus.SERVICE_UNAVAILABLE)
+        except (AgentRunError, ProposalGuardrailError) as exc:
+            self._json({"error": str(exc), "request_id": self.request_id}, HTTPStatus.BAD_GATEWAY)
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
             self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 

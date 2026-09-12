@@ -25,6 +25,8 @@ Request summary -> structured JSON stdout
 Decisions ------> bounded audit store ------> /observability/audit
 ```
 
+LLM investigations add `llm.agent_run`, `llm.model`, and `llm.tool` spans beneath the HTTP request. Accepted proposals link to the deterministic decision through `deterministic_decision_id`.
+
 ## Structured logging
 
 Logs are emitted as one JSON object per line. Request logs include:
@@ -56,12 +58,16 @@ The POC stores recent spans in a thread-safe, bounded memory buffer. This makes 
 - Data-pull counts by source and outcome
 - Span counts and duration by fixed stage and status
 - Triage decisions by exception type and severity
+- LLM model calls and durations by model and status
+- LLM token totals by model and direction
+- LLM tool calls by bounded tool name and status
+- Accepted and rejected proposals by bounded action code
 
 Routes are normalized before they become metric labels. Order IDs, supplier IDs, request IDs, and trace IDs are never metric labels because their high cardinality would make a production metrics backend expensive and unstable.
 
 ## Decision audit trail
 
-Every triage decision records the order ID, trace ID, request ID, exception type, severity, score, approval requirement, timestamp, and policy version. The audit record intentionally excludes the complete input payload.
+Every triage decision records the order ID, trace ID, request ID, exception type, severity, score, approval requirement, timestamp, and policy version. Accepted LLM proposals additionally record the action code, model, provider response ID, and deterministic parent decision ID. The audit record intentionally excludes the complete input payload, prompt, planner notes, and model rationale.
 
 The in-memory audit endpoint is for local demonstration only. A production audit sink should be append-only, encrypted, access controlled, retained according to policy, and queryable by order and trace ID.
 

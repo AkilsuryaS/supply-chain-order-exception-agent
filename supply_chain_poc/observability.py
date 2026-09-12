@@ -256,3 +256,34 @@ def record_decision(result: dict) -> dict:
         {"exception_type": result.get("exception_type"), "severity": result.get("severity")},
     )
     return event
+
+
+def record_agentic_decision(
+    proposal: dict,
+    *,
+    model: str,
+    response_id: str | None,
+    deterministic_decision_id: str,
+) -> dict:
+    event = {
+        "decision_id": str(uuid.uuid4()),
+        "decision_type": "LLM_ACTION_PROPOSAL",
+        "timestamp": _utc_now(),
+        "trace_id": current_trace_id(),
+        "request_id": _request_id.get(),
+        "order_id": proposal.get("order_id"),
+        "exception_type": proposal.get("primary_exception"),
+        "severity": proposal.get("severity"),
+        "action_code": proposal.get("action_code"),
+        "requires_approval": proposal.get("requires_approval"),
+        "policy_version": POLICY_VERSION,
+        "model": model,
+        "response_id": response_id,
+        "deterministic_decision_id": deterministic_decision_id,
+    }
+    AUDIT_EVENTS.add(event)
+    METRICS.increment(
+        "supply_chain_llm_proposals_total",
+        {"action_code": proposal.get("action_code"), "status": "accepted"},
+    )
+    return event

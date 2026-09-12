@@ -2,7 +2,7 @@
 
 ## Scope
 
-The system is a read-only decision-support POC for supply-chain order exceptions. It demonstrates the boundary between ERP data access, deterministic business rules, recommendations, human approval, and operational telemetry. It intentionally does not execute ERP changes or send external messages.
+The system is a read-only decision-support POC for supply-chain order exceptions. It demonstrates the boundary between ERP data access, deterministic business rules, an optional LLM tool-calling investigator, recommendations, human approval, and operational telemetry. It intentionally does not execute ERP changes or send external messages.
 
 ## Design principles
 
@@ -12,6 +12,7 @@ The system is a read-only decision-support POC for supply-chain order exceptions
 - Correlate every decision with its request, trace, policy version, and audit event.
 - Avoid high-cardinality metric labels and sensitive payload logging.
 - Degrade visibly when the data source is unavailable rather than returning plausible empty results.
+- Fail closed when the LLM, required tools, structured output, or post-model guardrails fail.
 
 ## Components
 
@@ -31,6 +32,12 @@ Agent orchestration
   +---- classification
   +---- severity scoring
   +---- recommendation policy
+  |
+  +---- optional LLM manager
+          +---- mandatory rule and policy tools
+          +---- optional context tools
+          +---- structured action proposal
+          +---- deterministic output guardrail
   |
   v
 Decision response + append-only audit intent
@@ -52,6 +59,10 @@ The engine evaluates all configured exception rules, ranks simultaneous issues, 
 
 Recommendations return `requires_approval`. The POC never treats a recommendation as an executed action. A future execution service should be a separate component with authorization, idempotency, spend and inventory limits, and an immutable record of the approver.
 
+### LLM orchestration boundary
+
+The optional LLM manager owns investigation order and tool selection, not business authority. It must load the requested order, run deterministic triage, and retrieve the matching policy. It may then call inventory or supplier-context tools. Strict output schemas constrain the final proposal, and application code rejects any attempt to change authoritative fields or approval controls. See [the LLM agentic workflow](agentic-workflow.md).
+
 ### Observability boundary
 
 The observability module owns correlation context, JSON logging, spans, metrics, and audit events. Business code calls this interface without depending on a specific vendor backend. See [observability design](observability.md).
@@ -68,6 +79,8 @@ The observability module owns correlation context, JSON logging, spans, metrics,
 8. Return the decision and correlation headers.
 9. Record request count, duration, status, and a structured completion log.
 
+For `/agent/llm-triage`, steps 4–7 run inside an `llm.agent_run` span. The application sends tool results back to the model until it returns a structured proposal or reaches the configured turn limit. A second, linked audit event records the accepted LLM proposal and its deterministic parent decision.
+
 ## Data contracts
 
 The input contract contains order identity, supplier and SKU references, dates, quantities, inventory position, commercial values, and customer/supplier risk context. The output contract contains:
@@ -79,6 +92,7 @@ The input contract contains order identity, supplier and SKU references, dates, 
 - Evidence and recommended action
 - Approval requirement
 - `policy_version`
+- LLM action code, model, response ID, and linked deterministic decision ID when applicable
 
 The synthetic `expected_exception` field is evaluation metadata. Production connectors must remove or ignore it before classification.
 
@@ -93,12 +107,14 @@ The synthetic `expected_exception` field is evaluation metadata. Production conn
 | Duplicate future action | Not applicable in this POC | Mandatory idempotency key and action ledger |
 | Process restart | In-memory telemetry is lost | External telemetry and durable audit stores |
 | Slow batch | Duration is visible by request and agent stage | Queue-based workers, concurrency limits, and backpressure |
+| Model timeout or provider error | LLM endpoint fails closed with correlated error | Deadline, bounded retry policy, circuit breaker, and explicit deterministic fallback product decision |
+| Invalid or unsafe model proposal | Post-model guardrail rejects the proposal | Alert, retained trace, evaluation regression, and planner routing |
 
 ## Scaling path
 
 For higher volume, separate synchronous single-order triage from asynchronous batch processing. The API would place batch work on a durable queue, workers would claim partitions using a run ID, and results would be written to a decision store. Concurrency should be limited per ERP source to avoid amplifying upstream failures. A batch status resource would expose progress, failures, and retry state.
 
-The rules are CPU-light. ERP latency, data volume, and downstream action safety are more likely constraints than classification compute.
+The rules are CPU-light. ERP and model latency, data volume, token budgets, and downstream action safety are more likely constraints than classification compute.
 
 ## Security and governance
 
@@ -115,10 +131,11 @@ The rules are CPU-light. ERP latency, data volume, and downstream action safety 
 - Unit tests verify each exception boundary and severity threshold.
 - Generated ground truth verifies rule and generator agreement.
 - Observability tests verify trace hierarchy, propagation, error spans, audit correlation, and metric exposure.
+- Agent trajectory tests use a deterministic fake model to verify tool calls, schemas, turn limits, and post-model guardrails without billable network calls.
 - Contract tests should be added for each real ERP adapter.
 - Replay tests should use sanitized historical exceptions before production rollout.
 - Failure-injection tests should cover ERP timeouts, malformed records, partial batches, and telemetry-backend outages.
 
 ## Key tradeoffs
 
-The POC uses standard-library components and in-memory telemetry to remain immediately runnable. This demonstrates contracts and signal design but does not provide durable storage, distributed export, authentication, or multi-process aggregation. The intended production evolution is OpenTelemetry plus external metrics, trace, log, and audit backends rather than expanding the in-memory stores.
+The deterministic POC uses standard-library components and in-memory telemetry to remain immediately runnable. The optional LLM path adds the OpenAI Python SDK and an explicit Responses API tool loop. This demonstrates contracts and signal design but does not provide durable storage, distributed export, authentication, or multi-process aggregation. The intended production evolution is a supported web runtime, durable workflow state, OpenTelemetry, and external metrics, trace, log, and audit backends rather than expanding the in-memory stores.
