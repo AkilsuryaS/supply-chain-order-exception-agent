@@ -2,7 +2,7 @@
 
 Personal study project and proof of concept for automating supply-chain order-exception triage.
 
-The project explores how a multi-step decision-support agent can reduce the repetitive work involved in reviewing ERP orders. It includes both a deterministic baseline and an optional LLM tool-calling workflow. The LLM investigates orders through bounded read-only tools while deterministic rules retain control of classifications, severity, policy, and approval requirements.
+The project explores how a multi-step decision-support agent can reduce the repetitive work involved in reviewing ERP orders. It includes both a deterministic baseline and an optional Hugging Face LLM tool-calling workflow. The open-weight model investigates orders through bounded read-only tools while deterministic rules retain control of classifications, severity, policy, and approval requirements.
 
 ## Project goals
 
@@ -60,16 +60,17 @@ python -m unittest discover -s tests -v
 python -m supply_chain_poc.api --port 8000
 ```
 
-Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the interactive study-project preview. The deterministic baseline works without credentials. The LLM investigation button requires the optional dependency and API key below.
+Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the interactive study-project preview. The deterministic baseline works without credentials. Hosted LLM investigation requires the free Hugging Face token described below.
 
-To enable the real LLM agentic workflow:
+To enable the real LLM agentic workflow, create a fine-grained Hugging Face token with **Make calls to Inference Providers** permission. A free Hugging Face account includes a small monthly inference credit; it is intended for experimentation, not unlimited production traffic.
 
 ```bash
-python -m pip install -e '.[llm]'
-export OPENAI_API_KEY='your-key'
-export OPENAI_MODEL='gpt-5.5'
+export HF_TOKEN='hf_your_token'
+export HF_MODEL='Qwen/Qwen3-32B:cheapest'
 python -m supply_chain_poc.api --port 8000
 ```
+
+No OpenAI account, API key, model, or SDK is used. The HTTP client is implemented with Python's standard library and calls the Hugging Face router directly. To self-host instead, point `HF_BASE_URL` at a Responses-compatible gateway serving a Hugging Face model; tokens are optional for a trusted local endpoint.
 
 In another terminal:
 
@@ -124,7 +125,7 @@ Send `X-Request-ID` or a valid W3C `traceparent` header to continue an upstream 
 
 ## LLM agent workflow
 
-The optional agent uses the OpenAI Responses API with strict function tools and Structured Outputs. It must call the order, deterministic-triage, and policy tools before returning a proposal. It can independently decide whether inventory-alternative and supplier-history tools would improve the recommendation.
+The optional agent uses Hugging Face Inference Providers and a Responses-compatible API with strict function tools and Structured Outputs. Its default is the open-weight `Qwen/Qwen3-32B` model using the router's cheapest-provider policy. It must call the order, deterministic-triage, and policy tools before returning a proposal. It can independently decide whether inventory-alternative and supplier-history tools would improve the recommendation.
 
 Application guardrails reject any proposal that changes the deterministic exception or severity, selects a disallowed action, investigates the wrong order, or lowers a required approval. Model prompts and complete ERP payloads are not written to operational logs. Read the [LLM agentic workflow](docs/agentic-workflow.md) for tool contracts, safety controls, evaluation gates, production topology, and the path to optional specialist agents.
 
@@ -140,7 +141,7 @@ When real data is available, keep the classification and recommendation modules 
 - Currency conversion, units of measure, partial receipts, order-line joins, calendars, and supplier acknowledgements are simplified.
 - Recommendations are decision support only; no ERP transaction or supplier message is executed.
 - `confidence` is `1.0` because classification is rule-based. A trained probability should replace it only after labeled historical decisions are available.
-- LLM calls require an API key and the optional `llm` dependency. Automated tests use a deterministic fake model and do not make billable network requests.
+- Hosted LLM calls require `HF_TOKEN` and consume Hugging Face inference credits. Automated tests use a deterministic fake model and do not make network requests.
 - The included HTTP server and in-memory telemetry stores are demonstrators, not production infrastructure.
 
 ## Evaluation results

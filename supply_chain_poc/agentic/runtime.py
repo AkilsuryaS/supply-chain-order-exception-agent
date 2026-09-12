@@ -6,6 +6,8 @@ import os
 import time
 from dataclasses import dataclass
 from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from supply_chain_poc.agentic.prompts import AGENT_INSTRUCTIONS
 from supply_chain_poc.agentic.schemas import PROPOSAL_SCHEMA, ProposalGuardrailError, validate_proposal
@@ -28,14 +30,16 @@ class AgentRunError(RuntimeError):
 
 @dataclass(frozen=True)
 class AgentConfig:
-    model: str = "gpt-5.5"
+    provider: str = "huggingface"
+    model: str = "Qwen/Qwen3-32B:cheapest"
     max_turns: int = 8
     max_output_tokens: int = 1200
 
     @classmethod
     def from_env(cls) -> "AgentConfig":
         return cls(
-            model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
+            provider="huggingface",
+            model=os.getenv("HF_MODEL", "Qwen/Qwen3-32B:cheapest"),
             max_turns=int(os.getenv("LLM_MAX_TURNS", "8")),
             max_output_tokens=int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "1200")),
         )
@@ -47,8 +51,62 @@ def _field(item: Any, name: str, default: Any = None) -> Any:
     return getattr(item, name, default)
 
 
-class OpenAIResponseAgent:
-    """Explicit Responses API tool loop with deterministic post-model guardrails."""
+class HuggingFaceResponsesClient:
+    """Small dependency-free client for Hugging Face's Responses-compatible API."""
+
+    def __init__(self, token: str, base_url: str, timeout: float = 45) -> None:
+        self.token = token
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+        self.responses = self
+
+    def create(self, **payload: Any) -> dict:
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        request = Request(
+            f"{self.base_url}/responses",
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=self.timeout) as response:
+                result = json.loads(response.read())
+        except HTTPError as exc:
+            message = f"Hugging Face returned HTTP {exc.code}"
+            try:
+                details = json.loads(exc.read()).get("error")
+                if isinstance(details, dict):
+                    details = details.get("message")
+                if details:
+                    message = f"{message}: {details}"
+            except (json.JSONDecodeError, AttributeError):
+                pass
+            raise RuntimeError(message) from exc
+        except URLError as exc:
+            raise RuntimeError("Could not reach the configured Hugging Face inference endpoint") from exc
+        if not isinstance(result, dict):
+            raise RuntimeError("Hugging Face returned an invalid response")
+        return result
+
+
+def _output_text(response: Any) -> str:
+    direct = _field(response, "output_text", "")
+    if direct:
+        return direct
+    parts: list[str] = []
+    for item in _field(response, "output", []) or []:
+        if _field(item, "type") != "message":
+            continue
+        for content in _field(item, "content", []) or []:
+            if _field(content, "type") == "output_text":
+                parts.append(_field(content, "text", ""))
+    return "".join(parts)
+
+
+class HuggingFaceResponseAgent:
+    """Hugging Face Responses tool loop with deterministic post-model guardrails."""
 
     def __init__(self, client: Any, tools: SupplyChainTools | None = None, config: AgentConfig | None = None) -> None:
         self.client = client
@@ -56,19 +114,18 @@ class OpenAIResponseAgent:
         self.config = config or AgentConfig.from_env()
 
     @classmethod
-    def from_env(cls, tools: SupplyChainTools | None = None) -> "OpenAIResponseAgent":
-        if not os.getenv("OPENAI_API_KEY"):
-            raise AgentConfigurationError("OPENAI_API_KEY is not configured")
-        try:
-            from openai import OpenAI
-        except ImportError as exc:
-            raise AgentConfigurationError("Install the LLM dependencies with: pip install -e '.[llm]'") from exc
-        timeout = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "30"))
-        return cls(OpenAI(timeout=timeout), tools=tools, config=AgentConfig.from_env())
+    def from_env(cls, tools: SupplyChainTools | None = None) -> "HuggingFaceResponseAgent":
+        base_url = os.getenv("HF_BASE_URL", "https://router.huggingface.co/v1").rstrip("/")
+        token = os.getenv("HF_TOKEN", "")
+        if base_url == "https://router.huggingface.co/v1" and not token:
+            raise AgentConfigurationError("HF_TOKEN is not configured")
+        timeout = float(os.getenv("HF_TIMEOUT_SECONDS", "45"))
+        client = HuggingFaceResponsesClient(token=token, base_url=base_url, timeout=timeout)
+        return cls(client, tools=tools, config=AgentConfig.from_env())
 
     def _create_response(self, **kwargs: Any) -> Any:
         started = time.perf_counter()
-        with span("llm.model", model=self.config.model) as active_span:
+        with span("llm.model", provider=self.config.provider, model=self.config.model) as active_span:
             try:
                 response = self.client.responses.create(
                     model=self.config.model,
@@ -134,7 +191,9 @@ class OpenAIResponseAgent:
         requested_order_loaded = False
         response_ids: list[str] = []
 
-        with span("llm.agent_run", order_id=order_id, model=self.config.model) as run_span:
+        with span(
+            "llm.agent_run", order_id=order_id, provider=self.config.provider, model=self.config.model
+        ) as run_span:
             response = self._create_response(input=input_payload)
             for turn_index in range(self.config.max_turns):
                 response_id = _field(response, "id")
@@ -180,7 +239,7 @@ class OpenAIResponseAgent:
                 raise AgentRunError(f"Agent did not call mandatory tools: {', '.join(sorted(missing_tools))}")
             if not requested_order_loaded:
                 raise ProposalGuardrailError("Model did not load the requested order")
-            output_text = _field(response, "output_text", "")
+            output_text = _output_text(response)
             try:
                 proposal = json.loads(output_text)
             except (TypeError, json.JSONDecodeError) as exc:
@@ -213,6 +272,7 @@ class OpenAIResponseAgent:
                 "deterministic_decision_id": deterministic["decision_id"],
                 "policy_version": deterministic["policy_version"],
                 "agent_mode": "llm_tool_calling",
+                "provider": self.config.provider,
                 "model": self.config.model,
                 "response_id": _field(response, "id"),
                 "tools_called": called_tools,
@@ -223,6 +283,7 @@ class OpenAIResponseAgent:
             log_event(
                 logging.INFO,
                 "llm.agent_completed",
+                provider=self.config.provider,
                 order_id=order_id,
                 action_code=result["action_code"],
                 tool_call_count=len(called_tools),
@@ -235,6 +296,7 @@ __all__ = [
     "AgentConfig",
     "AgentConfigurationError",
     "AgentRunError",
-    "OpenAIResponseAgent",
+    "HuggingFaceResponseAgent",
+    "HuggingFaceResponsesClient",
     "ProposalGuardrailError",
 ]

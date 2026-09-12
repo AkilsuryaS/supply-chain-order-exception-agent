@@ -7,7 +7,8 @@ from unittest.mock import patch
 from supply_chain_poc.agentic.runtime import (
     AgentConfig,
     AgentConfigurationError,
-    OpenAIResponseAgent,
+    HuggingFaceResponseAgent,
+    HuggingFaceResponsesClient,
     ProposalGuardrailError,
 )
 from supply_chain_poc.agentic.tools import CsvOrderRepository, SupplyChainTools
@@ -107,12 +108,13 @@ class AgenticRuntimeTests(unittest.TestCase):
 
     def test_agent_executes_tools_and_returns_guarded_structured_proposal(self):
         client = self.build_client()
-        agent = OpenAIResponseAgent(client, self.tools, AgentConfig(model="test-model", max_turns=6))
+        agent = HuggingFaceResponseAgent(client, self.tools, AgentConfig(model="test-model", max_turns=6))
         trace_id = "e" * 32
         with request_context("agent-request-1", trace_id):
             result = agent.run(self.order_id, "Supplier asked for a one-day extension.")
 
         self.assertEqual("llm_tool_calling", result["agent_mode"])
+        self.assertEqual("huggingface", result["provider"])
         self.assertEqual("resp-4", result["response_id"])
         self.assertEqual(
             ["get_order", "run_deterministic_triage", "get_action_policy"],
@@ -136,7 +138,9 @@ class AgenticRuntimeTests(unittest.TestCase):
 
     def test_guardrail_rejects_changed_exception(self):
         invalid = {**self.proposal, "primary_exception": "PRICE_MISMATCH"}
-        agent = OpenAIResponseAgent(self.build_client(invalid), self.tools, AgentConfig(model="test-model", max_turns=6))
+        agent = HuggingFaceResponseAgent(
+            self.build_client(invalid), self.tools, AgentConfig(model="test-model", max_turns=6)
+        )
         with self.assertRaisesRegex(ProposalGuardrailError, "changed the deterministic exception"):
             agent.run(self.order_id)
         self.assertIn('status="rejected"', METRICS.render_prometheus())
@@ -145,10 +149,63 @@ class AgenticRuntimeTests(unittest.TestCase):
         result = self.tools.call("get_order", {"order_id": self.order_id})
         self.assertNotIn("expected_exception", result["order"])
 
-    def test_missing_api_key_fails_closed(self):
+    def test_missing_huggingface_token_fails_closed(self):
         with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaisesRegex(AgentConfigurationError, "OPENAI_API_KEY"):
-                OpenAIResponseAgent.from_env(self.tools)
+            with self.assertRaisesRegex(AgentConfigurationError, "HF_TOKEN"):
+                HuggingFaceResponseAgent.from_env(self.tools)
+
+    def test_self_hosted_endpoint_can_run_without_token(self):
+        environment = {
+            "HF_BASE_URL": "http://127.0.0.1:8001/v1",
+            "HF_MODEL": "Qwen/Qwen3-8B",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            agent = HuggingFaceResponseAgent.from_env(self.tools)
+
+        self.assertEqual("Qwen/Qwen3-8B", agent.config.model)
+        self.assertEqual("", agent.client.token)
+
+    def test_raw_huggingface_response_output_is_supported(self):
+        raw_final = {
+            "id": "resp-4",
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": json.dumps(self.proposal)}],
+                }
+            ],
+            "usage": {"input_tokens": 100, "output_tokens": 25},
+        }
+        client = self.build_client()
+        client.responses._responses[-1] = raw_final
+        result = HuggingFaceResponseAgent(
+            client, self.tools, AgentConfig(model="test-model", max_turns=6)
+        ).run(self.order_id)
+
+        self.assertEqual(self.proposal["action_code"], result["action_code"])
+
+    def test_huggingface_http_client_targets_responses_api(self):
+        class FakeHTTPResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            @staticmethod
+            def read():
+                return b'{"id":"hf-response","output":[]}'
+
+        client = HuggingFaceResponsesClient(
+            token="hf_test_token", base_url="https://router.huggingface.co/v1", timeout=12
+        )
+        with patch("supply_chain_poc.agentic.runtime.urlopen", return_value=FakeHTTPResponse()) as mocked:
+            response = client.responses.create(model="Qwen/Qwen3-32B", input="hello")
+
+        request = mocked.call_args.args[0]
+        self.assertEqual("https://router.huggingface.co/v1/responses", request.full_url)
+        self.assertEqual("Bearer hf_test_token", request.headers["Authorization"])
+        self.assertEqual("hf-response", response["id"])
 
 
 if __name__ == "__main__":

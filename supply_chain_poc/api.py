@@ -15,7 +15,7 @@ from supply_chain_poc import __version__
 from supply_chain_poc.agentic.runtime import (
     AgentConfigurationError,
     AgentRunError,
-    OpenAIResponseAgent,
+    HuggingFaceResponseAgent,
     ProposalGuardrailError,
 )
 from supply_chain_poc.engine import triage_order, triage_orders
@@ -190,7 +190,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/agent/triage":
                 self._json(triage_order(payload))
                 return
-            agent = OpenAIResponseAgent.from_env()
+            agent = HuggingFaceResponseAgent.from_env()
             result = agent.run(payload.get("order_id", ""), payload.get("planner_notes", ""))
             self._json(result)
         except AgentConfigurationError as exc:

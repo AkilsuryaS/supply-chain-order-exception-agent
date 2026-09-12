@@ -30,7 +30,7 @@
             <p class="eyebrow">Supply-chain control tower</p>
             <h1>Investigate an order exception</h1>
             <p class="hero-copy">
-              Compare the deterministic rules with the guarded LLM tool-calling workflow. The agent can investigate and propose an action, while policies retain control of classification and approval.
+              Compare the deterministic rules with a guarded Hugging Face open-weight LLM workflow. The agent can investigate and propose an action, while policies retain control of classification and approval.
             </p>
           </div>
           <div class="architecture-card" aria-label="Agent workflow">
@@ -58,7 +58,7 @@
 
             <div class="button-stack">
               <button class="button button-primary" type="submit" id="llm-button">
-                <span>Run LLM investigation</span>
+                <span>Run Hugging Face agent</span>
                 <span aria-hidden="true">→</span>
               </button>
               <button class="button button-secondary" type="button" id="rules-button">Run deterministic baseline</button>
@@ -82,7 +82,7 @@
               <span class="error-label">Request failed</span>
               <h2 id="error-title">Unable to run investigation</h2>
               <p id="error-message"></p>
-              <p class="error-hint hidden" id="error-hint">Configure <code>OPENAI_API_KEY</code> and install <code>.[llm]</code>, or use the deterministic baseline.</p>
+              <p class="error-hint hidden" id="error-hint"><a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer">Create a Hugging Face token</a> with Inference Providers permission and configure <code>HF_TOKEN</code>, or point <code>HF_BASE_URL</code> to a self-hosted compatible endpoint. The deterministic baseline needs no token.</p>
             </div>
 
             <div class="decision hidden" id="decision">

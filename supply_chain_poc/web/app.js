@@ -69,7 +69,7 @@ function renderDecision(result, mode) {
 }
 
 function renderError(error) {
-  document.querySelector("#error-title").textContent = error.status === 503 ? "LLM configuration required" : "Unable to run investigation";
+  document.querySelector("#error-title").textContent = error.status === 503 ? "Hugging Face token required" : "Unable to run investigation";
   document.querySelector("#error-message").textContent = error.message;
   document.querySelector("#error-hint").classList.toggle("hidden", error.status !== 503);
   showView("error");
@@ -87,7 +87,7 @@ async function runLlm(event) {
         planner_notes: document.querySelector("#planner-notes").value.trim(),
       }),
     });
-    renderDecision(result, "LLM tool-calling result");
+    renderDecision(result, "Hugging Face agent result");
   } catch (error) {
     renderError(error);
   } finally {

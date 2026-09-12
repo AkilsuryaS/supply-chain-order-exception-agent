@@ -4,7 +4,7 @@
 
 The LLM layer investigates an order, selects relevant read-only tools, incorporates unstructured planner notes, and proposes an allowed next action. Deterministic code remains authoritative for exception classification, severity, policy, and approval requirements.
 
-The implementation uses the OpenAI Responses API directly because this workflow benefits from owning the tool loop, state transitions, validation, and audit behavior. The [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create) supports custom function tools, structured JSON output, tool-choice controls, and response state. The [function-calling guide](https://developers.openai.com/api/docs/guides/function-calling) and [Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs) define the underlying contracts.
+The implementation calls the [Hugging Face Responses-compatible API](https://huggingface.co/docs/inference-providers/en/guides/responses-api) directly because this workflow benefits from owning the tool loop, state transitions, validation, and audit behavior. Hugging Face Inference Providers support tool calling and structured outputs across compatible open-weight models. The default is `Qwen/Qwen3-32B:cheapest`; the model and endpoint remain configurable.
 
 ## Runtime flow
 
@@ -67,18 +67,11 @@ An LLM guardrail is useful for semantic quality, but it must not replace these c
 
 ## Running the LLM workflow
 
-Install the optional SDK dependency:
-
-```bash
-python -m pip install -e '.[llm]'
-```
-
 Configure credentials without committing them:
 
 ```bash
-cp .env.example .env
-export OPENAI_API_KEY='your-key'
-export OPENAI_MODEL='gpt-5.5'
+export HF_TOKEN='hf_your_token'
+export HF_MODEL='Qwen/Qwen3-32B:cheapest'
 ```
 
 Start the API and submit an investigation:
@@ -91,11 +84,20 @@ curl -X POST 'http://127.0.0.1:8000/agent/llm-triage' \
   --data @examples/llm_request.json
 ```
 
-The endpoint fails with `503` when the SDK or API key is missing. It does not disguise a deterministic response as an LLM result.
+The endpoint fails with `503` when the hosted router token is missing. It does not disguise a deterministic response as an LLM result. The client uses only the Python standard library; no OpenAI SDK or account is required.
+
+For local or private deployment, run an open-weight Hugging Face model behind a Responses-compatible inference gateway and configure:
+
+```bash
+export HF_BASE_URL='http://127.0.0.1:8001/v1'
+export HF_MODEL='Qwen/Qwen3-8B'
+```
+
+`HF_TOKEN` is optional for a trusted local endpoint. Model weights and compute are then local, so Hugging Face hosted inference credits are not consumed.
 
 ## Model and data handling
 
-The model is configured with `OPENAI_MODEL` so deployments can choose and pin a model after evaluation. The application explicitly sends `store=False`. Production teams must still review their retention, residency, contractual, and security requirements before sending ERP data to any model provider.
+The model is configured with `HF_MODEL` and the endpoint with `HF_BASE_URL`, so deployments can evaluate and pin a routed or self-hosted model. The application explicitly sends `store=False`. Production teams must still review their retention, residency, contractual, and security requirements before sending ERP data to any model provider.
 
 Only provide fields that the decision requires. Tokenize or omit customer and supplier identity where possible, remove secrets and personal data, and treat free text as a higher-risk input. Maintain an allowlist of fields per tool rather than forwarding raw ERP objects.
 
@@ -107,7 +109,7 @@ Use three evaluation layers:
 - Agent trajectory tests for mandatory tools, tool arguments, maximum turns, and failure behavior.
 - Outcome evaluations for action-code accuracy, grounded evidence, unsupported claims, approval recall, latency, and cost.
 
-Build a sanitized historical dataset that includes the order snapshot, notes available at decision time, planner action, approval result, and eventual outcome. Split by time rather than randomly so evaluation resembles future operations. The official [Evals guide](https://developers.openai.com/api/docs/guides/evals) can be used to compare model and prompt versions systematically.
+Build a sanitized historical dataset that includes the order snapshot, notes available at decision time, planner action, approval result, and eventual outcome. Split by time rather than randomly so evaluation resembles future operations, and compare every candidate model and prompt against the same replay set.
 
 Critical release gates should include:
 
@@ -124,7 +126,7 @@ Critical release gates should include:
 API gateway and identity
           |
           v
-Stateless triage API --------> OpenAI Responses API
+Stateless triage API --------> Hugging Face router or self-hosted model
           |
           +----> read-only ERP adapter / sanitized decision view
           +----> policy service with versioned rules
