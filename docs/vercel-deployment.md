@@ -1,6 +1,6 @@
 # Vercel deployment
 
-The repository includes a root FastAPI entry point in `app.py` and Vercel configuration in `vercel.json`. The browser UI, mock ERP endpoints, deterministic workflow, and Hugging Face agent are served from the same HTTPS origin.
+The repository includes a root FastAPI application in `app.py`, a thin Vercel Python Function entry point in `api/index.py`, and routing configuration in `vercel.json`. The browser UI, mock ERP endpoints, deterministic workflow, and Hugging Face agent are served from the same HTTPS origin.
 
 ## Deploy
 
@@ -39,4 +39,4 @@ The FastAPI process is stateless between invocations. Synthetic order data ships
 
 Vercel request logs may contain paths, status codes, and platform metadata. Tokens are deliberately sent in a header rather than a URL or request body, but users should still create a narrowly scoped Hugging Face token and revoke it after a public demo if desired. Never paste tokens into source files, Git commits, screenshots, URLs, or support messages.
 
-Function duration follows the limits of the selected Vercel plan and runtime. Model availability, provider routing, Hugging Face credits, and Vercel limits remain external dependencies. The deterministic baseline continues to work if hosted LLM inference is unavailable.
+The configured function duration is 60 seconds, subject to the selected Vercel plan and runtime. Model availability, provider routing, Hugging Face credits, and Vercel limits remain external dependencies. The deterministic baseline continues to work if hosted LLM inference is unavailable.

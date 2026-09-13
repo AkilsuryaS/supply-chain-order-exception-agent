@@ -192,6 +192,7 @@ examples/              Example API request
 outputs/               Formatted data workbook
 scripts/               Workbook-generation utility
 app.py                 FastAPI/Vercel application entry point
+api/index.py            Vercel Python Function adapter
 supply_chain_poc/      Generator, rule engine, and mock API
   agentic/             LLM prompt, tools, schemas, and Responses API loop
 tests/                 Repeatable rule-engine tests
