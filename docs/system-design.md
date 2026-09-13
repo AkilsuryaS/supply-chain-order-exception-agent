@@ -107,7 +107,7 @@ The synthetic `expected_exception` field is evaluation metadata. Production conn
 | Duplicate future action | Not applicable in this POC | Mandatory idempotency key and action ledger |
 | Process restart | In-memory telemetry is lost | External telemetry and durable audit stores |
 | Slow batch | Duration is visible by request and agent stage | Queue-based workers, concurrency limits, and backpressure |
-| Model timeout or provider error | LLM endpoint fails closed with correlated error | Deadline, bounded retry policy, circuit breaker, and explicit deterministic fallback product decision |
+| Model timeout or provider error | LLM endpoint fails closed with correlated error; retry-safe failures receive short budgeted retries | Total run deadline, circuit breaker, and explicit deterministic fallback product decision |
 | Invalid or unsafe model proposal | Post-model guardrail rejects the proposal | Alert, retained trace, evaluation regression, and planner routing |
 
 ## Scaling path

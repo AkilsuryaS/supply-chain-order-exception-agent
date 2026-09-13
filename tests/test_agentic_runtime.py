@@ -244,6 +244,46 @@ class AgenticRuntimeTests(unittest.TestCase):
         ):
             agent.run(self.order_id)
 
+    def test_transient_provider_failure_is_retried_within_budget(self):
+        client = HuggingFaceResponsesClient(
+            token="hf_test_token",
+            base_url="https://router.huggingface.co/v1",
+            max_retries=2,
+            retry_budget_seconds=8,
+        )
+        transient = ProviderRequestError(
+            "Hugging Face returned HTTP 503",
+            status_code=503,
+            retryable=True,
+        )
+        with (
+            patch.object(client, "_create_once", side_effect=[transient, {"id": "recovered"}]) as mocked,
+            patch("supply_chain_poc.agentic.runtime.time.sleep") as sleep,
+        ):
+            response = client.create(model="Qwen/Qwen3-32B", input="hello")
+
+        self.assertEqual("recovered", response["id"])
+        self.assertEqual(2, mocked.call_count)
+        sleep.assert_called_once_with(0.5)
+        self.assertIn("supply_chain_llm_provider_retries_total", METRICS.render_prometheus())
+
+    def test_authentication_failure_is_not_retried(self):
+        client = HuggingFaceResponsesClient(
+            token="hf_test_token",
+            base_url="https://router.huggingface.co/v1",
+            max_retries=2,
+        )
+        denied = ProviderRequestError(
+            "Hugging Face returned HTTP 401",
+            status_code=401,
+            retryable=False,
+        )
+        with patch.object(client, "_create_once", side_effect=denied) as mocked:
+            with self.assertRaises(ProviderRequestError):
+                client.create(model="Qwen/Qwen3-32B", input="hello")
+
+        self.assertEqual(1, mocked.call_count)
+
     def test_failed_response_envelope_is_rejected(self):
         class FailedHTTPResponse:
             def __enter__(self):

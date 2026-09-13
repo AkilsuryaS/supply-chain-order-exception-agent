@@ -80,7 +80,7 @@ For a server-managed deployment, configure the token before starting the service
 
 ```bash
 export HF_TOKEN='hf_your_token'
-export HF_MODEL='Qwen/Qwen3-32B:cheapest'
+export HF_MODEL='Qwen/Qwen3-32B'
 python -m supply_chain_poc.api --port 8000
 ```
 
@@ -141,7 +141,7 @@ Send `X-Request-ID` or a valid W3C `traceparent` header to continue an upstream 
 
 ## LLM agent workflow
 
-The optional agent uses Hugging Face Inference Providers and a Responses-compatible API with strict function tools and Structured Outputs. Its default is the open-weight `Qwen/Qwen3-32B` model using the router's cheapest-provider policy. Before inference, the application always loads the order, runs deterministic triage, and selects the matching policy. The model then independently decides whether inventory-alternative and supplier-history tools would improve its recommendation.
+The optional agent uses Hugging Face Inference Providers and a Responses-compatible API with strict function tools and Structured Outputs. Its default is the open-weight `Qwen/Qwen3-32B` model using the router's automatic fastest-provider policy. Short, retry-safe provider failures receive bounded retries; authentication, validation, and guardrail failures are never retried. Before inference, the application always loads the order, runs deterministic triage, and selects the matching policy. The model then independently decides whether inventory-alternative and supplier-history tools would improve its recommendation.
 
 `google/gemma-4-12B-it` is supported through a self-hosted compatible gateway by setting `HF_MODEL`, but it is not the hosted default because Hugging Face currently exposes no Inference Provider mapping for that repository.
 

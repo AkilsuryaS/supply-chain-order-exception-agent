@@ -1,6 +1,6 @@
 [project]
 name = "supply-chain-exception-poc"
-version = "0.6.0"
+version = "0.6.1"
 description = "POC for detecting and recommending actions for supply-chain order exceptions"
 requires-python = ">=3.11"
 dependencies = ["certifi>=2024.8.30", "fastapi>=0.117.1,<1"]

@@ -32,6 +32,8 @@ async function requestJson(url, options = {}) {
   if (!response.ok) {
     const error = new Error(payload.error || `Request failed with HTTP ${response.status}.`);
     error.status = response.status;
+    error.code = payload.code;
+    error.retryable = Boolean(payload.retryable);
     throw error;
   }
   return payload;
@@ -69,9 +71,15 @@ function renderDecision(result, mode) {
 }
 
 function renderError(error) {
-  document.querySelector("#error-title").textContent = error.status === 503 ? "Hugging Face token required" : "Unable to run investigation";
+  const configurationError = error.code === "configuration_error";
+  const providerUnavailable = error.code === "provider_unavailable";
+  document.querySelector("#error-title").textContent = configurationError
+    ? "Hugging Face token required"
+    : providerUnavailable
+      ? "Hugging Face is temporarily unavailable"
+      : "Unable to run investigation";
   document.querySelector("#error-message").textContent = error.message;
-  document.querySelector("#error-hint").classList.toggle("hidden", error.status !== 503);
+  document.querySelector("#error-hint").classList.toggle("hidden", !configurationError);
   showView("error");
 }
 

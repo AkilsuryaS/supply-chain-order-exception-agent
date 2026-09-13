@@ -29,17 +29,30 @@ class AgentConfigurationError(RuntimeError):
 
 
 class AgentRunError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.retryable = retryable
 
 
 class ProviderRequestError(RuntimeError):
     """Safe provider-facing error that never contains request credentials."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        retryable: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.retryable = retryable
+
 
 @dataclass(frozen=True)
 class AgentConfig:
     provider: str = "huggingface"
-    model: str = "Qwen/Qwen3-32B:cheapest"
+    model: str = "Qwen/Qwen3-32B"
     max_turns: int = 8
     max_output_tokens: int = 1200
 
@@ -47,7 +60,7 @@ class AgentConfig:
     def from_env(cls) -> "AgentConfig":
         return cls(
             provider="huggingface",
-            model=os.getenv("HF_MODEL", "Qwen/Qwen3-32B:cheapest"),
+            model=os.getenv("HF_MODEL", "Qwen/Qwen3-32B"),
             max_turns=int(os.getenv("LLM_MAX_TURNS", "8")),
             max_output_tokens=int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "1200")),
         )
@@ -62,14 +75,54 @@ def _field(item: Any, name: str, default: Any = None) -> Any:
 class HuggingFaceResponsesClient:
     """Small dependency-free client for Hugging Face's Responses-compatible API."""
 
-    def __init__(self, token: str, base_url: str, timeout: float = 45) -> None:
+    def __init__(
+        self,
+        token: str,
+        base_url: str,
+        timeout: float = 45,
+        max_retries: int = 2,
+        retry_budget_seconds: float = 8,
+    ) -> None:
         self.token = token
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.max_retries = max(0, max_retries)
+        self.retry_budget_seconds = max(0, retry_budget_seconds)
         self.ssl_context = ssl.create_default_context(cafile=certifi.where())
         self.responses = self
 
     def create(self, **payload: Any) -> dict:
+        started = time.monotonic()
+        for attempt in range(self.max_retries + 1):
+            try:
+                return self._create_once(payload)
+            except ProviderRequestError as exc:
+                delay = min(0.5 * (2**attempt), 2.0)
+                elapsed = time.monotonic() - started
+                can_retry = (
+                    exc.retryable
+                    and attempt < self.max_retries
+                    and elapsed + delay <= self.retry_budget_seconds
+                )
+                if not can_retry:
+                    raise
+                model = str(payload.get("model", "unknown"))
+                METRICS.increment(
+                    "supply_chain_llm_provider_retries_total",
+                    {"model": model, "status_code": str(exc.status_code or "network")},
+                )
+                log_event(
+                    logging.WARNING,
+                    "llm.provider_retry",
+                    model=model,
+                    attempt=attempt + 1,
+                    status_code=exc.status_code,
+                    delay_seconds=delay,
+                )
+                time.sleep(delay)
+        raise ProviderRequestError("Hugging Face retry loop ended unexpectedly")
+
+    def _create_once(self, payload: dict[str, Any]) -> dict:
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
@@ -92,13 +145,20 @@ class HuggingFaceResponsesClient:
                     message = f"{message}: {details}"
             except (json.JSONDecodeError, AttributeError):
                 pass
-            raise ProviderRequestError(message) from exc
+            raise ProviderRequestError(
+                message,
+                status_code=exc.code,
+                retryable=exc.code == 429 or 500 <= exc.code <= 599,
+            ) from exc
         except URLError as exc:
             if isinstance(exc.reason, ssl.SSLCertVerificationError):
                 raise ProviderRequestError(
                     "TLS certificate verification failed while connecting to Hugging Face"
                 ) from exc
-            raise ProviderRequestError("Could not reach the configured Hugging Face inference endpoint") from exc
+            raise ProviderRequestError(
+                "Could not reach the configured Hugging Face inference endpoint",
+                retryable=True,
+            ) from exc
         if not isinstance(result, dict):
             raise ProviderRequestError("Hugging Face returned an invalid response")
         if result.get("status") == "failed" or result.get("error"):
@@ -109,7 +169,13 @@ class HuggingFaceResponsesClient:
             else:
                 code = "provider_error"
                 message = str(error)
-            raise ProviderRequestError(f"Hugging Face response failed ({code}): {message}")
+            status_match = re.search(r"\b(429|5\d\d)\b", str(message))
+            status_code = int(status_match.group(1)) if status_match else None
+            raise ProviderRequestError(
+                f"Hugging Face response failed ({code}): {message}",
+                status_code=status_code,
+                retryable=status_code == 429 or bool(status_code and 500 <= status_code <= 599),
+            )
         return result
 
 
@@ -150,7 +216,15 @@ class HuggingFaceResponseAgent:
                 "HF_TOKEN is malformed; copy only the token value beginning with hf_"
             )
         timeout = float(os.getenv("HF_TIMEOUT_SECONDS", "45"))
-        client = HuggingFaceResponsesClient(token=token, base_url=base_url, timeout=timeout)
+        max_retries = int(os.getenv("HF_MAX_RETRIES", "2"))
+        retry_budget = float(os.getenv("HF_RETRY_BUDGET_SECONDS", "8"))
+        client = HuggingFaceResponsesClient(
+            token=token,
+            base_url=base_url,
+            timeout=timeout,
+            max_retries=max_retries,
+            retry_budget_seconds=retry_budget,
+        )
         return cls(client, tools=tools, config=AgentConfig.from_env())
 
     def _create_response(self, *, tool_specs: list[dict] | None = None, **kwargs: Any) -> Any:
@@ -177,7 +251,8 @@ class HuggingFaceResponseAgent:
             except Exception as exc:
                 METRICS.increment("supply_chain_llm_model_calls_total", {"model": self.config.model, "status": "failure"})
                 detail = str(exc) if isinstance(exc, ProviderRequestError) else type(exc).__name__
-                raise AgentRunError(f"Model request failed: {detail}") from exc
+                retryable = isinstance(exc, ProviderRequestError) and exc.retryable
+                raise AgentRunError(f"Model request failed: {detail}", retryable=retryable) from exc
             duration = time.perf_counter() - started
             active_span.set_attribute("response_id", _field(response, "id"))
             METRICS.increment("supply_chain_llm_model_calls_total", {"model": self.config.model, "status": "success"})

@@ -167,8 +167,18 @@ def llm_triage(payload: dict, x_hf_token: str | None = Header(None, alias="X-HF-
         agent = HuggingFaceResponseAgent.from_env(token_override=x_hf_token)
         return agent.run(payload.get("order_id", ""), payload.get("planner_notes", ""))
     except AgentConfigurationError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=503)
-    except (AgentRunError, ProposalGuardrailError) as exc:
+        return JSONResponse(
+            {"error": str(exc), "code": "configuration_error", "retryable": False},
+            status_code=503,
+        )
+    except AgentRunError as exc:
+        status_code = 503 if exc.retryable else 502
+        code = "provider_unavailable" if exc.retryable else "agent_run_error"
+        return JSONResponse(
+            {"error": str(exc), "code": code, "retryable": exc.retryable},
+            status_code=status_code,
+        )
+    except ProposalGuardrailError as exc:
         return JSONResponse({"error": str(exc)}, status_code=502)
     except (TypeError, ValueError) as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)

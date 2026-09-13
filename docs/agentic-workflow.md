@@ -4,7 +4,7 @@
 
 The LLM layer investigates an order, selects relevant read-only tools, incorporates unstructured planner notes, and proposes an allowed next action. Deterministic code remains authoritative for exception classification, severity, policy, and approval requirements.
 
-The implementation calls the [Hugging Face Responses-compatible API](https://huggingface.co/docs/inference-providers/en/guides/responses-api) directly because this workflow benefits from owning the tool loop, state transitions, validation, and audit behavior. Hugging Face Inference Providers support tool calling and structured outputs across compatible open-weight models. The default is `Qwen/Qwen3-32B:cheapest`; the model and endpoint remain configurable.
+The implementation calls the [Hugging Face Responses-compatible API](https://huggingface.co/docs/inference-providers/en/guides/responses-api) directly because this workflow benefits from owning the tool loop, state transitions, validation, and audit behavior. Hugging Face Inference Providers support tool calling and structured outputs across compatible open-weight models. The default is `Qwen/Qwen3-32B`, allowing automatic fastest-provider routing; the model and endpoint remain configurable.
 
 ## Runtime flow
 
@@ -75,7 +75,7 @@ For the local POC, enter a fine-grained token in the preview's password field. T
 
 ```bash
 export HF_TOKEN='hf_your_token'
-export HF_MODEL='Qwen/Qwen3-32B:cheapest'
+export HF_MODEL='Qwen/Qwen3-32B'
 ```
 
 Start the API and submit an investigation:
@@ -169,7 +169,7 @@ Multi-agent designs increase model calls, latency, cost, and evaluation surface.
 - Move policies from code into a reviewed, versioned policy service or repository.
 - Persist audit records and workflow state in durable storage.
 - Export traces through OpenTelemetry and aggregate metrics across processes.
-- Add retries with jitter only for retry-safe failures and enforce a total run deadline.
+- Add a total agent-run deadline and circuit breaker around the existing short, budgeted retries for retry-safe failures.
 - Add model rate limits, budget limits, circuit breaking, and deterministic failure behavior.
 - Pin dependencies and model versions through a tested release process.
 - Run offline and shadow-mode evaluations before enabling any side-effecting tool.
