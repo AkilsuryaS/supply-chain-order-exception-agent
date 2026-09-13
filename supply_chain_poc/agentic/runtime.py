@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -116,9 +117,13 @@ class HuggingFaceResponseAgent:
     @classmethod
     def from_env(cls, tools: SupplyChainTools | None = None) -> "HuggingFaceResponseAgent":
         base_url = os.getenv("HF_BASE_URL", "https://router.huggingface.co/v1").rstrip("/")
-        token = os.getenv("HF_TOKEN", "")
+        token = os.getenv("HF_TOKEN", "").strip()
         if base_url == "https://router.huggingface.co/v1" and not token:
             raise AgentConfigurationError("HF_TOKEN is not configured")
+        if token and not re.fullmatch(r"hf_[A-Za-z0-9]+", token):
+            raise AgentConfigurationError(
+                "HF_TOKEN is malformed; copy only the token value beginning with hf_"
+            )
         timeout = float(os.getenv("HF_TIMEOUT_SECONDS", "45"))
         client = HuggingFaceResponsesClient(token=token, base_url=base_url, timeout=timeout)
         return cls(client, tools=tools, config=AgentConfig.from_env())

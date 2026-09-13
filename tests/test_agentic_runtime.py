@@ -158,6 +158,11 @@ class AgenticRuntimeTests(unittest.TestCase):
         self.assertEqual("Qwen/Qwen3-8B", agent.config.model)
         self.assertEqual("", agent.client.token)
 
+    def test_malformed_huggingface_token_fails_with_clear_error(self):
+        with patch.dict(os.environ, {"HF_TOKEN": "‘not a token’"}, clear=True):
+            with self.assertRaisesRegex(AgentConfigurationError, "malformed"):
+                HuggingFaceResponseAgent.from_env(self.tools)
+
     def test_raw_huggingface_response_output_is_supported(self):
         raw_final = {
             "id": "resp-2",
