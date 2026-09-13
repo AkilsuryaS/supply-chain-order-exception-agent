@@ -115,9 +115,13 @@ class HuggingFaceResponseAgent:
         self.config = config or AgentConfig.from_env()
 
     @classmethod
-    def from_env(cls, tools: SupplyChainTools | None = None) -> "HuggingFaceResponseAgent":
+    def from_env(
+        cls,
+        tools: SupplyChainTools | None = None,
+        token_override: str | None = None,
+    ) -> "HuggingFaceResponseAgent":
         base_url = os.getenv("HF_BASE_URL", "https://router.huggingface.co/v1").rstrip("/")
-        token = os.getenv("HF_TOKEN", "").strip()
+        token = (token_override if token_override and token_override.strip() else os.getenv("HF_TOKEN", "")).strip()
         if base_url == "https://router.huggingface.co/v1" and not token:
             raise AgentConfigurationError("HF_TOKEN is not configured")
         if token and not re.fullmatch(r"hf_[A-Za-z0-9]+", token):

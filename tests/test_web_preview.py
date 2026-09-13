@@ -16,10 +16,15 @@ class WebPreviewTests(unittest.TestCase):
 
     def test_preview_supports_llm_and_deterministic_modes(self) -> None:
         javascript = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+        html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
 
         self.assertIn('requestJson("/agent/llm-triage"', javascript)
         self.assertIn('requestJson("/agent/triage"', javascript)
         self.assertIn("/erp/orders/", javascript)
+        self.assertIn('type="password"', html)
+        self.assertIn('headers["X-HF-Token"] = token', javascript)
+        self.assertNotIn("localStorage", javascript)
+        self.assertNotIn("sessionStorage", javascript)
 
     def test_static_asset_routes_have_bounded_metric_cardinality(self) -> None:
         self.assertEqual(route_template("/assets/app.js"), "/assets/{asset}")

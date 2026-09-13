@@ -56,6 +56,23 @@
             <textarea id="planner-notes" name="planner_notes" rows="6" maxlength="4000">The customer launch depends on this order. The supplier has not yet provided a recovery date.</textarea>
             <p class="field-help">Notes are treated as untrusted context and cannot override policy.</p>
 
+            <label for="hf-token">Hugging Face token <span class="optional-label">Hosted demo</span></label>
+            <input
+              id="hf-token"
+              type="password"
+              inputmode="text"
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck="false"
+              placeholder="hf_..."
+              aria-describedby="hf-token-help"
+            />
+            <p class="field-help" id="hf-token-help">
+              Used only for this request and kept in browser memory. It is not logged, saved, or committed.
+              <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer">Create a token</a>
+              with Inference Providers permission.
+            </p>
+
             <div class="button-stack">
               <button class="button button-primary" type="submit" id="llm-button">
                 <span>Run Hugging Face agent</span>
@@ -82,7 +99,7 @@
               <span class="error-label">Request failed</span>
               <h2 id="error-title">Unable to run investigation</h2>
               <p id="error-message"></p>
-              <p class="error-hint hidden" id="error-hint"><a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer">Create a Hugging Face token</a> with Inference Providers permission and configure <code>HF_TOKEN</code>, or point <code>HF_BASE_URL</code> to a self-hosted compatible endpoint. The deterministic baseline needs no token.</p>
+              <p class="error-hint hidden" id="error-hint">Enter a Hugging Face token in the form, configure server-side <code>HF_TOKEN</code>, or point <code>HF_BASE_URL</code> to a self-hosted compatible endpoint. The deterministic baseline needs no token.</p>
             </div>
 
             <div class="decision hidden" id="decision">

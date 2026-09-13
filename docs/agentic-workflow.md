@@ -71,7 +71,7 @@ An LLM guardrail is useful for semantic quality, but it must not replace these c
 
 ## Running the LLM workflow
 
-Configure credentials without committing them:
+For the local POC, enter a fine-grained token in the preview's password field. The browser sends it as `X-HF-Token` only for that request; neither browser storage nor application telemetry receives it. Alternatively, configure a server-side credential without committing it:
 
 ```bash
 export HF_TOKEN='hf_your_token'
@@ -88,7 +88,7 @@ curl -X POST 'http://127.0.0.1:8000/agent/llm-triage' \
   --data @examples/llm_request.json
 ```
 
-The endpoint fails with `503` when the hosted router token is missing. It does not disguise a deterministic response as an LLM result. The client uses only the Python standard library; no OpenAI SDK or account is required.
+The endpoint uses the request token when supplied and otherwise falls back to server-side `HF_TOKEN`. It fails with `503` when the hosted router token is missing or malformed. It does not disguise a deterministic response as an LLM result. The client uses only the Python standard library; no OpenAI SDK or account is required.
 
 For local or private deployment, run an open-weight Hugging Face model behind a Responses-compatible inference gateway and configure:
 
@@ -104,6 +104,8 @@ export HF_MODEL='Qwen/Qwen3-8B'
 The model is configured with `HF_MODEL` and the endpoint with `HF_BASE_URL`, so deployments can evaluate and pin a routed or self-hosted model. The application explicitly sends `store=False`. Production teams must still review their retention, residency, contractual, and security requirements before sending ERP data to any model provider.
 
 Only provide fields that the decision requires. Tokenize or omit customer and supplier identity where possible, remove secrets and personal data, and treat free text as a higher-risk input. Maintain an allowlist of fields per tool rather than forwarding raw ERP objects.
+
+The bring-your-own-token field is appropriate for localhost study and HTTPS-protected demos. Production systems should normally use server-side workload credentials or delegated authorization; they should not collect users' personal access tokens in an application form.
 
 ## Evaluation before production
 

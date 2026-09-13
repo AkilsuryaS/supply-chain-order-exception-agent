@@ -127,6 +127,7 @@ h1 { margin: 0; max-width: 700px; font-size: clamp(36px, 5vw, 58px); line-height
 .read-only-pill { padding: 6px 9px; border-radius: 999px; background: #eaf5f3; color: #087164; font-size: 11px; font-weight: 800; text-transform: uppercase; }
 
 label { display: block; margin: 26px 0 8px; font-size: 13px; font-weight: 750; }
+.optional-label { margin-left: 6px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 input, textarea {
   width: 100%;
   padding: 13px 14px;
@@ -140,6 +141,7 @@ input, textarea {
 textarea { resize: vertical; min-height: 132px; line-height: 1.5; }
 input:focus, textarea:focus { border-color: var(--blue); background: white; box-shadow: 0 0 0 4px rgba(23, 107, 135, 0.11); }
 .field-help { margin: 7px 0 0; color: #7a8796; font-size: 12px; line-height: 1.45; }
+.field-help a { color: var(--blue); font-weight: 700; }
 
 .button-stack { display: grid; gap: 10px; margin-top: 26px; }
 .button {

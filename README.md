@@ -62,7 +62,9 @@ python -m supply_chain_poc.api --port 8000
 
 Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the interactive study-project preview. The deterministic baseline works without credentials. Hosted LLM investigation requires the free Hugging Face token described below.
 
-To enable the real LLM agentic workflow, create a fine-grained Hugging Face token with **Make calls to Inference Providers** permission. A free Hugging Face account includes a small monthly inference credit; it is intended for experimentation, not unlimited production traffic.
+To enable the real LLM agentic workflow, create a fine-grained Hugging Face token with **Make calls to Inference Providers** permission. A free Hugging Face account includes a small monthly inference credit; it is intended for experimentation, not unlimited production traffic. For the local POC, paste the token into the password field in the preview. It is sent only to the local backend for that request and is not placed in browser storage or telemetry.
+
+For a server-managed deployment, configure the token before starting the service:
 
 ```bash
 export HF_TOKEN='hf_your_token'
@@ -71,6 +73,8 @@ python -m supply_chain_poc.api --port 8000
 ```
 
 No OpenAI account, API key, model, or SDK is used. The HTTP client is implemented with Python's standard library and calls the Hugging Face router directly. To self-host instead, point `HF_BASE_URL` at a Responses-compatible gateway serving a Hugging Face model; tokens are optional for a trusted local endpoint.
+
+The bring-your-own-token UI is intended for localhost study and HTTPS-protected demos. A production service should normally keep provider credentials server-side or use delegated authorization rather than collecting personal access tokens from end users.
 
 In another terminal:
 
@@ -108,7 +112,7 @@ curl -X POST 'http://127.0.0.1:8000/agent/triage' \
 | GET | `/erp/orders/{order_id}` | Retrieve one order |
 | GET | `/agent/exceptions` | Run the complete POC pipeline over the mock feed |
 | POST | `/agent/triage` | Classify and recommend an action for one supplied order |
-| POST | `/agent/llm-triage` | Run the LLM tool-calling investigation for an order ID |
+| POST | `/agent/llm-triage` | Run the LLM investigation; accepts an optional ephemeral `X-HF-Token` header |
 | GET | `/observability/traces` | Inspect recent correlated spans |
 | GET | `/observability/audit` | Inspect recent decision audit events |
 

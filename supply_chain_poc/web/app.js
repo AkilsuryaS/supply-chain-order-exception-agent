@@ -79,9 +79,12 @@ async function runLlm(event) {
   event.preventDefault();
   setBusy(true, "The LLM is selecting tools, gathering evidence, and checking policy.");
   try {
+    const token = document.querySelector("#hf-token").value.trim();
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["X-HF-Token"] = token;
     const result = await requestJson("/agent/llm-triage", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         order_id: document.querySelector("#order-id").value.trim(),
         planner_notes: document.querySelector("#planner-notes").value.trim(),

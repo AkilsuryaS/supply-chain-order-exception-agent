@@ -163,6 +163,14 @@ class AgenticRuntimeTests(unittest.TestCase):
             with self.assertRaisesRegex(AgentConfigurationError, "malformed"):
                 HuggingFaceResponseAgent.from_env(self.tools)
 
+    def test_request_token_can_override_environment(self):
+        with patch.dict(os.environ, {"HF_TOKEN": "hf_environment"}, clear=True):
+            agent = HuggingFaceResponseAgent.from_env(
+                self.tools, token_override="hf_requesttoken"
+            )
+
+        self.assertEqual("hf_requesttoken", agent.client.token)
+
     def test_raw_huggingface_response_output_is_supported(self):
         raw_final = {
             "id": "resp-2",

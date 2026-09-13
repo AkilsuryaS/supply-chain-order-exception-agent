@@ -83,6 +83,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Request-ID", self.request_id)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Cache-Control", "no-store")
         self.send_header(
             "Content-Security-Policy",
             "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; "
@@ -190,7 +191,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/agent/triage":
                 self._json(triage_order(payload))
                 return
-            agent = HuggingFaceResponseAgent.from_env()
+            agent = HuggingFaceResponseAgent.from_env(token_override=self.headers.get("X-HF-Token"))
             result = agent.run(payload.get("order_id", ""), payload.get("planner_notes", ""))
             self._json(result)
         except AgentConfigurationError as exc:
