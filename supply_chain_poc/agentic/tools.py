@@ -133,6 +133,14 @@ class SupplyChainTools:
     def specs(self) -> list[dict]:
         return TOOL_SPECS
 
+    @property
+    def optional_specs(self) -> list[dict]:
+        return [
+            spec
+            for spec in TOOL_SPECS
+            if spec["name"] in {"find_inventory_alternatives", "get_supplier_summary"}
+        ]
+
     @staticmethod
     def policy_for(exception_type: str, severity: str) -> dict:
         if exception_type not in POLICIES:

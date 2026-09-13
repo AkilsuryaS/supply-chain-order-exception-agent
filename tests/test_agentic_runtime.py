@@ -82,27 +82,14 @@ class AgenticRuntimeTests(unittest.TestCase):
 
     def build_client(self, proposal: dict | None = None) -> FakeClient:
         proposal = proposal or self.proposal
+        supplier_id = self.tools.repository.get_order(self.order_id)["supplier_id"]
         return FakeClient(
             [
-                fake_response("resp-1", calls=[function_call("get_order", {"order_id": self.order_id}, 1)]),
                 fake_response(
-                    "resp-2",
-                    calls=[function_call("run_deterministic_triage", {"order_id": self.order_id}, 2)],
+                    "resp-1",
+                    calls=[function_call("get_supplier_summary", {"supplier_id": supplier_id}, 1)],
                 ),
-                fake_response(
-                    "resp-3",
-                    calls=[
-                        function_call(
-                            "get_action_policy",
-                            {
-                                "exception_type": self.deterministic["exception_type"],
-                                "severity": self.deterministic["severity"],
-                            },
-                            3,
-                        )
-                    ],
-                ),
-                fake_response("resp-4", output_text=json.dumps(proposal)),
+                fake_response("resp-2", output_text=json.dumps(proposal)),
             ]
         )
 
@@ -115,11 +102,12 @@ class AgenticRuntimeTests(unittest.TestCase):
 
         self.assertEqual("llm_tool_calling", result["agent_mode"])
         self.assertEqual("huggingface", result["provider"])
-        self.assertEqual("resp-4", result["response_id"])
+        self.assertEqual("resp-2", result["response_id"])
         self.assertEqual(
-            ["get_order", "run_deterministic_triage", "get_action_policy"],
+            ["get_order", "run_deterministic_triage", "get_action_policy", "get_supplier_summary"],
             result["tools_called"],
         )
+        self.assertEqual(["get_supplier_summary"], result["model_selected_tools"])
         self.assertEqual(self.deterministic["exception_type"], result["primary_exception"])
         self.assertNotEqual(result["decision_id"], result["deterministic_decision_id"])
 
@@ -127,6 +115,11 @@ class AgenticRuntimeTests(unittest.TestCase):
         self.assertFalse(first_call["store"])
         self.assertTrue(first_call["text"]["format"]["strict"])
         self.assertIn("planner_notes", first_call["input"])
+        self.assertIn("authoritative_context", first_call["input"])
+        self.assertEqual(
+            {"find_inventory_alternatives", "get_supplier_summary"},
+            {tool["name"] for tool in first_call["tools"]},
+        )
         self.assertEqual("resp-1", client.responses.calls[1]["previous_response_id"])
 
         traces = TRACES.recent(100)
@@ -167,7 +160,7 @@ class AgenticRuntimeTests(unittest.TestCase):
 
     def test_raw_huggingface_response_output_is_supported(self):
         raw_final = {
-            "id": "resp-4",
+            "id": "resp-2",
             "output": [
                 {
                     "type": "message",
@@ -183,6 +176,17 @@ class AgenticRuntimeTests(unittest.TestCase):
         ).run(self.order_id)
 
         self.assertEqual(self.proposal["action_code"], result["action_code"])
+
+    def test_model_can_finish_without_optional_tool_calls(self):
+        client = FakeClient([fake_response("resp-1", output_text=json.dumps(self.proposal))])
+        result = HuggingFaceResponseAgent(
+            client, self.tools, AgentConfig(model="test-model", max_turns=6)
+        ).run(self.order_id)
+
+        self.assertEqual(
+            ["get_order", "run_deterministic_triage", "get_action_policy"], result["tools_called"]
+        )
+        self.assertEqual([], result["model_selected_tools"])
 
     def test_huggingface_http_client_targets_responses_api(self):
         class FakeHTTPResponse:

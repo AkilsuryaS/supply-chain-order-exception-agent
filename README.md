@@ -125,7 +125,9 @@ Send `X-Request-ID` or a valid W3C `traceparent` header to continue an upstream 
 
 ## LLM agent workflow
 
-The optional agent uses Hugging Face Inference Providers and a Responses-compatible API with strict function tools and Structured Outputs. Its default is the open-weight `Qwen/Qwen3-32B` model using the router's cheapest-provider policy. It must call the order, deterministic-triage, and policy tools before returning a proposal. It can independently decide whether inventory-alternative and supplier-history tools would improve the recommendation.
+The optional agent uses Hugging Face Inference Providers and a Responses-compatible API with strict function tools and Structured Outputs. Its default is the open-weight `Qwen/Qwen3-32B` model using the router's cheapest-provider policy. Before inference, the application always loads the order, runs deterministic triage, and selects the matching policy. The model then independently decides whether inventory-alternative and supplier-history tools would improve its recommendation.
+
+`google/gemma-4-12B-it` is supported through a self-hosted compatible gateway by setting `HF_MODEL`, but it is not the hosted default because Hugging Face currently exposes no Inference Provider mapping for that repository.
 
 Application guardrails reject any proposal that changes the deterministic exception or severity, selects a disallowed action, investigates the wrong order, or lowers a required approval. Model prompts and complete ERP payloads are not written to operational logs. Read the [LLM agentic workflow](docs/agentic-workflow.md) for tool contracts, safety controls, evaluation gates, production topology, and the path to optional specialist agents.
 
@@ -146,7 +148,7 @@ When real data is available, keep the classification and recommendation modules 
 
 ## Evaluation results
 
-The current test dataset contains 200 orders: 75 control records and 25 records for each configured exception. The engine matches all generated ground-truth labels. Agent tests also verify mandatory tool use, strict output configuration, trace correlation, ground-truth isolation, and rejection of model attempts to change authoritative decisions. This confirms implementation behavior; it is not evidence of real-world recommendation quality.
+The current test dataset contains 200 orders: 75 control records and 25 records for each configured exception. The engine matches all generated ground-truth labels. Agent tests also verify mandatory context hydration, optional model-selected tool use, strict output configuration, trace correlation, ground-truth isolation, and rejection of model attempts to change authoritative decisions. This confirms implementation behavior; it is not evidence of real-world recommendation quality.
 
 Run the repeatable evaluation with:
 

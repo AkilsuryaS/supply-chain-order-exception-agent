@@ -15,13 +15,17 @@ POST /agent/llm-triage
   Correlation and root trace
           |
           v
+ Application context hydration
+          |
+          +--> get_order
+          +--> run_deterministic_triage
+          +--> get_action_policy
+          |
+          v
    LLM manager agent
           |
-          +--> get_order (mandatory)
-          +--> run_deterministic_triage (mandatory)
-          +--> get_action_policy (mandatory)
-          +--> find_inventory_alternatives (optional)
-          +--> get_supplier_summary (optional)
+          +--> find_inventory_alternatives (model-selected)
+          +--> get_supplier_summary (model-selected)
           |
           v
  Strict JSON action proposal
@@ -38,7 +42,7 @@ Every model response and tool execution is a child span of `llm.agent_run`. The 
 
 ## Why this is genuinely agentic
 
-The model controls the investigation loop. It receives tool descriptions, decides which tool to call next, observes tool results, and continues until it can produce a final action proposal. Optional inventory and supplier tools allow it to gather more context when useful.
+The application deterministically hydrates the three safety-critical inputs before inference so model-specific tool-calling behavior cannot bypass them. The model controls the remaining investigation loop: it receives the trusted context plus optional tool descriptions, decides whether more evidence is useful, observes any tool results, and continues until it can produce a final action proposal.
 
 The system is not merely asking an LLM to classify a row. The LLM orchestrates bounded tools while application code controls authorization and validates the final decision.
 
@@ -58,7 +62,7 @@ Tool schemas use strict JSON arguments. The model never receives a write-enabled
 
 1. Input limits reject missing or oversized order identifiers and planner notes.
 2. Prompt instructions treat ERP fields and planner notes as untrusted data.
-3. Mandatory-tool checks require the requested order, authoritative rules, and matching policy to be consulted.
+3. Application-controlled context hydration always supplies the requested order, authoritative rules, and matching policy before inference.
 4. Structured Outputs constrain the model response to the action-proposal schema.
 5. Post-model code prevents changed classifications, changed severity, disallowed action codes, or reduced approval requirements.
 6. The workflow proposes actions only. It cannot execute them.
@@ -106,7 +110,7 @@ Only provide fields that the decision requires. Tokenize or omit customer and su
 Use three evaluation layers:
 
 - Deterministic tests for exception thresholds, policies, and approval boundaries.
-- Agent trajectory tests for mandatory tools, tool arguments, maximum turns, and failure behavior.
+- Agent trajectory tests for mandatory context hydration, optional tool arguments, maximum turns, and failure behavior.
 - Outcome evaluations for action-code accuracy, grounded evidence, unsupported claims, approval recall, latency, and cost.
 
 Build a sanitized historical dataset that includes the order snapshot, notes available at decision time, planner action, approval result, and eventual outcome. Split by time rather than randomly so evaluation resembles future operations, and compare every candidate model and prompt against the same replay set.

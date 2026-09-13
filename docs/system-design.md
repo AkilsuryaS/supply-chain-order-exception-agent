@@ -34,7 +34,7 @@ Agent orchestration
   +---- recommendation policy
   |
   +---- optional LLM manager
-          +---- mandatory rule and policy tools
+          +---- application-controlled rule and policy hydration
           +---- optional context tools
           +---- structured action proposal
           +---- deterministic output guardrail

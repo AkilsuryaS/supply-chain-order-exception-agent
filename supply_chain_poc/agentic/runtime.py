@@ -123,14 +123,14 @@ class HuggingFaceResponseAgent:
         client = HuggingFaceResponsesClient(token=token, base_url=base_url, timeout=timeout)
         return cls(client, tools=tools, config=AgentConfig.from_env())
 
-    def _create_response(self, **kwargs: Any) -> Any:
+    def _create_response(self, *, tool_specs: list[dict] | None = None, **kwargs: Any) -> Any:
         started = time.perf_counter()
         with span("llm.model", provider=self.config.provider, model=self.config.model) as active_span:
             try:
                 response = self.client.responses.create(
                     model=self.config.model,
                     instructions=AGENT_INSTRUCTIONS,
-                    tools=self.tools.specs,
+                    tools=self.tools.optional_specs if tool_specs is None else tool_specs,
                     parallel_tool_calls=False,
                     text={
                         "format": {
@@ -177,23 +177,35 @@ class HuggingFaceResponseAgent:
         if len(planner_notes) > 4000:
             raise ValueError("planner_notes must be 4000 characters or fewer")
 
-        input_payload = json.dumps(
-            {
-                "task": "Investigate this order and propose the next allowed action.",
-                "order_id": order_id,
-                "planner_notes": planner_notes,
-            },
-            separators=(",", ":"),
-        )
-        called_tools: list[str] = []
-        deterministic: dict | None = None
-        policy_context: dict | None = None
-        requested_order_loaded = False
+        called_tools = ["get_order", "run_deterministic_triage", "get_action_policy"]
+        model_selected_tools: list[str] = []
         response_ids: list[str] = []
 
         with span(
             "llm.agent_run", order_id=order_id, provider=self.config.provider, model=self.config.model
         ) as run_span:
+            order_context = self.tools.call("get_order", {"order_id": order_id})
+            deterministic = self.tools.call("run_deterministic_triage", {"order_id": order_id})["decision"]
+            policy_context = self.tools.call(
+                "get_action_policy",
+                {
+                    "exception_type": deterministic["exception_type"],
+                    "severity": deterministic["severity"],
+                },
+            )["policy"]
+            input_payload = json.dumps(
+                {
+                    "task": "Investigate this order and propose the next allowed action.",
+                    "order_id": order_id,
+                    "planner_notes": planner_notes,
+                    "authoritative_context": {
+                        **order_context,
+                        "deterministic_decision": deterministic,
+                        "action_policy": policy_context,
+                    },
+                },
+                separators=(",", ":"),
+            )
             response = self._create_response(input=input_payload)
             for turn_index in range(self.config.max_turns):
                 response_id = _field(response, "id")
@@ -210,15 +222,12 @@ class HuggingFaceResponseAgent:
                     name = _field(call, "name")
                     call_id = _field(call, "call_id")
                     try:
+                        if name not in {"find_inventory_alternatives", "get_supplier_summary"}:
+                            raise ValueError(f"Model requested unavailable tool {name}")
                         arguments = json.loads(_field(call, "arguments", "{}"))
                         output = self.tools.call(name, arguments)
                         called_tools.append(name)
-                        if name == "get_order" and arguments.get("order_id") == order_id:
-                            requested_order_loaded = True
-                        if name == "run_deterministic_triage":
-                            deterministic = output["decision"]
-                        if name == "get_action_policy":
-                            policy_context = output["policy"]
+                        model_selected_tools.append(name)
                         serialized = {"ok": True, **output}
                     except Exception as exc:
                         serialized = {"ok": False, "error": type(exc).__name__, "message": str(exc)}
@@ -233,12 +242,6 @@ class HuggingFaceResponseAgent:
             else:
                 raise AgentRunError(f"Agent exceeded the maximum of {self.config.max_turns} model turns")
 
-            mandatory_tools = {"get_order", "run_deterministic_triage", "get_action_policy"}
-            missing_tools = mandatory_tools.difference(called_tools)
-            if missing_tools or deterministic is None or policy_context is None:
-                raise AgentRunError(f"Agent did not call mandatory tools: {', '.join(sorted(missing_tools))}")
-            if not requested_order_loaded:
-                raise ProposalGuardrailError("Model did not load the requested order")
             output_text = _output_text(response)
             try:
                 proposal = json.loads(output_text)
@@ -276,10 +279,12 @@ class HuggingFaceResponseAgent:
                 "model": self.config.model,
                 "response_id": _field(response, "id"),
                 "tools_called": called_tools,
+                "model_selected_tools": model_selected_tools,
             }
             run_span.set_attribute("decision_id", result["decision_id"])
             run_span.set_attribute("action_code", result["action_code"])
             run_span.set_attribute("tool_call_count", len(called_tools))
+            run_span.set_attribute("model_selected_tool_count", len(model_selected_tools))
             log_event(
                 logging.INFO,
                 "llm.agent_completed",
