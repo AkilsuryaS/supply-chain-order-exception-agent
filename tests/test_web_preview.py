@@ -26,6 +26,15 @@ class WebPreviewTests(unittest.TestCase):
         self.assertNotIn("localStorage", javascript)
         self.assertNotIn("sessionStorage", javascript)
 
+    def test_preview_explains_study_scope_and_beneficiaries(self) -> None:
+        html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn("Personal engineering study", html)
+        self.assertIn("Who could benefit?", html)
+        self.assertIn("Order planners", html)
+        self.assertIn("A safe adoption path", html)
+        self.assertIn("github.com/AkilsuryaS/supply-chain-order-exception-agent", html)
+
     def test_static_asset_routes_have_bounded_metric_cardinality(self) -> None:
         self.assertEqual(route_template("/assets/app.js"), "/assets/{asset}")
         self.assertEqual(route_template("/assets/unknown.png"), "/assets/{asset}")

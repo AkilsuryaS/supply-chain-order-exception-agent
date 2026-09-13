@@ -4,6 +4,31 @@ Personal study project and proof of concept for automating supply-chain order-ex
 
 The project explores how a multi-step decision-support agent can reduce the repetitive work involved in reviewing ERP orders. It includes both a deterministic baseline and an optional Hugging Face LLM tool-calling workflow. The open-weight model investigates orders through bounded read-only tools while deterministic rules retain control of classifications, severity, policy, and approval requirements.
 
+**[Try the live application](https://supply-chain-order-exception-agent.vercel.app/agent/llm-triage)** · **[Read the user guide](docs/user-guide.md)** · **[Explore the system design](docs/system-design.md)**
+
+## Try it as a user
+
+No installation or credential is required for the deterministic workflow:
+
+1. Open the [live application](https://supply-chain-order-exception-agent.vercel.app/agent/llm-triage).
+2. Keep `PO-10004` to study a late shipment, or use `PO-10005` for an inventory shortage.
+3. Select **Run deterministic baseline** to see the exception, severity, evidence, recommended action, approval boundary, and decision ID.
+4. Open **Metrics**, **Traces**, **Audit**, or **Mock ERP** to inspect the operational evidence behind the workflow.
+5. Optionally enter a fine-grained Hugging Face token with Inference Providers permission and select **Run Hugging Face agent** to compare the guarded LLM investigation.
+
+The demo is read-only. It never updates an ERP order, contacts a supplier, or executes the recommendation. The included records are synthetic and contain no company data.
+
+## What this study demonstrates
+
+This is an end-to-end engineering study rather than only an LLM prompt demo. It examines:
+
+- How to separate ERP ingestion, deterministic classification, policy, LLM reasoning, and human approval.
+- Where an LLM adds value: gathering context, selecting bounded tools, explaining evidence, and proposing a policy-allowed next action.
+- Where an LLM should not have authority: changing the detected exception, lowering severity, bypassing approval, or executing transactions.
+- How structured outputs and post-model guardrails turn probabilistic output into a controlled proposal.
+- How logs, metrics, distributed traces, and decision audits make an agent observable and reviewable.
+- How synthetic ground truth, trajectory tests, and failure injection support repeatable evaluation before real ERP data is available.
+
 ## Project goals
 
 - Model a realistic order-exception workflow without using confidential company data.
@@ -50,6 +75,30 @@ The synthetic dataset is deterministic and includes a ground-truth `expected_exc
 | Price mismatch | Price differs from contract by more than 2% | Place the order on commercial hold and validate pricing |
 | Data quality | A required ERP field is missing or invalid | Correct the record before operational processing |
 
+## Real-world value and beneficiaries
+
+| Beneficiary | Current operational burden | How this workflow could help |
+| --- | --- | --- |
+| Supply and order planners | Repeatedly inspect dates, quantities, inventory, and notes across many orders | Prioritize a queue, summarize evidence, and propose the next policy-approved step |
+| Procurement and supplier managers | Chase late confirmations and recovery dates across suppliers | Identify supplier-related risks and prepare a consistent recovery request |
+| Inventory and fulfillment teams | Search plants or locations manually when stock is short | Surface alternate inventory context before a planner decides on a transfer |
+| Customer service and account teams | Discover delivery risk late and reconstruct the reason from multiple systems | Provide an explainable exception summary and escalation status |
+| Supply-chain control-tower leaders | Lack consistent severity, decision lineage, and triage performance measures | Standardize policy, monitor workload and latency, and audit decisions |
+| Platform, data, and AI engineering teams | Need a safe pattern for connecting agents to ERP data | Reuse the connector, tool, guardrail, evaluation, and observability boundaries |
+| Risk, compliance, and internal audit | Need evidence that automation did not bypass business controls | Review policy versions, approval requirements, traces, and linked decision IDs |
+
+In a real operation, the intended result is shorter time-to-diagnosis, more consistent triage, fewer missed high-risk orders, and better evidence for human decisions. Those are outcome hypotheses for a pilot—not claims proven by this synthetic POC. A production trial should measure median triage time, exception backlog age, precision/recall by exception type, recommendation acceptance, override reasons, and policy violations.
+
+## From study project to production pilot
+
+1. Connect a read-only ERP reporting API or sanitized export behind the existing repository interface.
+2. Map organization-specific fields and calibrate rules against historical planner decisions.
+3. Run silently in shadow mode and compare recommendations with actual outcomes.
+4. Add identity, role-based access, a durable decision store, and an approval workflow.
+5. Export OpenTelemetry signals and alerts to the organization’s observability platform.
+6. Pilot with one exception family, business unit, or planner group and define rollback criteria.
+7. Add write actions only through a separate, idempotent execution service after governance approval.
+
 ## Quick start
 
 Use Python 3.11 or newer. The sole runtime package supplies a maintained TLS certificate bundle.
@@ -65,7 +114,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the interactive study-
 
 ## Public Vercel demo
 
-Try the live demo at **[supply-chain-order-exception-agent.vercel.app](https://supply-chain-order-exception-agent.vercel.app/agent/llm-triage)**. The production deployment serves the UI and API from one HTTPS origin, so visitors can test it with their own Hugging Face token without installing the project. The token is carried in the `X-HF-Token` header for that request only; it is not stored by the UI or included in application telemetry.
+The production deployment serves the UI and API from one HTTPS origin, so visitors can test it without installing the project. The optional LLM token is carried in the `X-HF-Token` header for that request only; it is not stored by the UI or included in application telemetry.
 
 ```bash
 npx vercel@latest

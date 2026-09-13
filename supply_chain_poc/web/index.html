@@ -18,9 +18,12 @@
             <small>Decision-support POC</small>
           </span>
         </a>
-        <div class="service-state" aria-live="polite">
-          <span class="status-dot" id="status-dot"></span>
-          <span id="service-status">Checking service</span>
+        <div class="topbar-actions">
+          <a class="source-link" href="https://github.com/AkilsuryaS/supply-chain-order-exception-agent" target="_blank" rel="noreferrer">View source</a>
+          <div class="service-state" aria-live="polite">
+            <span class="status-dot" id="status-dot"></span>
+            <span id="service-status">Checking service</span>
+          </div>
         </div>
       </header>
 
@@ -145,6 +148,65 @@
           <a href="/observability/audit?limit=20" target="_blank" rel="noreferrer"><span>Audit</span><small>Versioned decisions</small></a>
           <a href="/erp/orders?limit=10" target="_blank" rel="noreferrer"><span>Mock ERP</span><small>Sample source orders</small></a>
         </nav>
+
+        <section class="study-intro" aria-labelledby="study-title">
+          <div class="section-heading">
+            <p class="eyebrow">Personal engineering study</p>
+            <h2 id="study-title">From repetitive order review to governed decision support</h2>
+            <p>This POC studies where deterministic policy, bounded LLM reasoning, human approval, and production observability should meet. All records are synthetic and every workflow remains read-only.</p>
+          </div>
+          <div class="study-grid">
+            <article>
+              <span class="card-number">01</span>
+              <h3>What to learn</h3>
+              <p>Compare repeatable rules with an LLM that selects read-only tools and returns a schema-constrained proposal.</p>
+            </article>
+            <article>
+              <span class="card-number">02</span>
+              <h3>What stays controlled</h3>
+              <p>Classification, severity, allowed actions, and approval requirements remain authoritative application policy.</p>
+            </article>
+            <article>
+              <span class="card-number">03</span>
+              <h3>What to inspect</h3>
+              <p>Use metrics, correlated traces, and decision audits to understand behavior rather than treating the agent as a black box.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="beneficiary-section" aria-labelledby="beneficiary-title">
+          <div class="section-heading compact">
+            <p class="eyebrow">Potential real-world value</p>
+            <h2 id="beneficiary-title">Who could benefit?</h2>
+            <p>In a governed pilot, the workflow could reduce time-to-diagnosis and make triage more consistent. These are hypotheses to measure with real operational data, not results claimed by this synthetic demo.</p>
+          </div>
+          <div class="beneficiary-grid">
+            <article><strong>Order planners</strong><span>Prioritized exceptions, evidence, and a proposed next step.</span></article>
+            <article><strong>Procurement teams</strong><span>Consistent supplier recovery and escalation context.</span></article>
+            <article><strong>Inventory teams</strong><span>Earlier visibility into shortages and transfer options.</span></article>
+            <article><strong>Customer operations</strong><span>Explainable delivery-risk summaries for follow-up.</span></article>
+            <article><strong>Control-tower leaders</strong><span>Standardized severity, workload signals, and decision lineage.</span></article>
+            <article><strong>Engineering and risk</strong><span>A reference pattern for tools, guardrails, tests, and auditability.</span></article>
+          </div>
+        </section>
+
+        <section class="production-path" aria-labelledby="production-title">
+          <div>
+            <p class="eyebrow">Production direction</p>
+            <h2 id="production-title">A safe adoption path</h2>
+          </div>
+          <ol>
+            <li>Connect a read-only ERP source and calibrate rules.</li>
+            <li>Evaluate silently against historical and live planner decisions.</li>
+            <li>Add identity, durable storage, approvals, and OpenTelemetry export.</li>
+            <li>Pilot one exception family before considering controlled execution.</li>
+          </ol>
+        </section>
+
+        <footer class="site-footer">
+          <span>Personal study project · Synthetic data · Decision support only</span>
+          <a href="https://github.com/AkilsuryaS/supply-chain-order-exception-agent/blob/main/docs/user-guide.md" target="_blank" rel="noreferrer">Read the complete user guide →</a>
+        </footer>
       </main>
     </div>
   </body>

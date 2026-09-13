@@ -26,7 +26,7 @@ class VercelAppTests(unittest.TestCase):
         order = self.client.get("/erp/orders/PO-10004")
         result = self.client.post("/agent/triage", json=order.json())
 
-        self.assertEqual("0.6.1", health.json()["version"])
+        self.assertEqual("0.7.0", health.json()["version"])
         self.assertEqual(200, result.status_code)
         self.assertEqual("LATE_SHIPMENT", result.json()["exception_type"])
 
