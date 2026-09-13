@@ -39,4 +39,4 @@ The FastAPI process is stateless between invocations. Synthetic order data ships
 
 Vercel request logs may contain paths, status codes, and platform metadata. Tokens are deliberately sent in a header rather than a URL or request body, but users should still create a narrowly scoped Hugging Face token and revoke it after a public demo if desired. Never paste tokens into source files, Git commits, screenshots, URLs, or support messages.
 
-The function timeout is set to 60 seconds for hosted inference. Model availability, provider routing, Hugging Face credits, and Vercel plan limits remain external dependencies. The deterministic baseline continues to work if hosted LLM inference is unavailable.
+Function duration follows the limits of the selected Vercel plan and runtime. Model availability, provider routing, Hugging Face credits, and Vercel limits remain external dependencies. The deterministic baseline continues to work if hosted LLM inference is unavailable.
