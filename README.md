@@ -65,7 +65,7 @@ Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the interactive study-
 
 ## Public Vercel demo
 
-The repository is ready to run as a Vercel FastAPI application. The production deployment serves the UI and API from one HTTPS origin, so visitors can test it with their own Hugging Face token without installing the project. The token is carried in the `X-HF-Token` header for that request only; it is not stored by the UI or included in application telemetry.
+Try the live demo at **[supply-chain-order-exception-agent.vercel.app](https://supply-chain-order-exception-agent.vercel.app/agent/llm-triage)**. The production deployment serves the UI and API from one HTTPS origin, so visitors can test it with their own Hugging Face token without installing the project. The token is carried in the `X-HF-Token` header for that request only; it is not stored by the UI or included in application telemetry.
 
 ```bash
 npx vercel@latest

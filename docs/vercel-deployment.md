@@ -23,15 +23,15 @@ Do not configure a shared `HF_TOKEN` when the application is intended as a bring
 
 ## Validate
 
-Replace the example host with the production URL:
+The current public production host is `https://supply-chain-order-exception-agent.vercel.app`:
 
 ```bash
-curl -fsS 'https://your-project.vercel.app/health'
-curl -fsS 'https://your-project.vercel.app/ready'
-curl -fsS 'https://your-project.vercel.app/agent/exceptions'
+curl -fsS 'https://supply-chain-order-exception-agent.vercel.app/health'
+curl -fsS 'https://supply-chain-order-exception-agent.vercel.app/ready'
+curl -fsS 'https://supply-chain-order-exception-agent.vercel.app/agent/exceptions'
 ```
 
-Open `https://your-project.vercel.app/agent/llm-triage` to test the hosted agent with a personal Hugging Face token.
+Open `https://supply-chain-order-exception-agent.vercel.app/agent/llm-triage` to test the hosted agent with a personal Hugging Face token.
 
 ## Serverless boundaries
 
