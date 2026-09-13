@@ -7,3 +7,4 @@ outputs/**/*.inspect.ndjson
 .env
 .venv/
 .vercel/
+.env.local
