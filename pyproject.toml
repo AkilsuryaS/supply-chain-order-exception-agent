@@ -1,9 +1,18 @@
 [project]
 name = "supply-chain-exception-poc"
-version = "0.5.3"
+version = "0.6.0"
 description = "POC for detecting and recommending actions for supply-chain order exceptions"
 requires-python = ">=3.11"
-dependencies = ["certifi>=2024.8.30"]
+dependencies = ["certifi>=2024.8.30", "fastapi>=0.117.1,<1"]
+
+[tool.vercel]
+entrypoint = "app:app"
+
+[tool.vercel.fastapi.static]
+cdn = true
+
+[dependency-groups]
+dev = ["httpx>=0.28,<1"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

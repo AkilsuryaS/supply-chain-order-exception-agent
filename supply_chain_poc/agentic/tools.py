@@ -111,8 +111,8 @@ TOOL_SPECS = [
 
 
 class CsvOrderRepository:
-    def __init__(self, path: Path | str = Path("data/synthetic_orders.csv")) -> None:
-        self.path = Path(path)
+    def __init__(self, path: Path | str | None = None) -> None:
+        self.path = Path(path) if path else Path(__file__).resolve().parents[2] / "data" / "synthetic_orders.csv"
 
     def all_orders(self) -> list[dict]:
         with self.path.open(encoding="utf-8") as handle:

@@ -63,6 +63,17 @@ python -m supply_chain_poc.api --port 8000
 
 Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) for the interactive study-project preview. The deterministic baseline works without credentials. Hosted LLM investigation requires the free Hugging Face token described below.
 
+## Public Vercel demo
+
+The repository is ready to run as a Vercel FastAPI application. The production deployment serves the UI and API from one HTTPS origin, so visitors can test it with their own Hugging Face token without installing the project. The token is carried in the `X-HF-Token` header for that request only; it is not stored by the UI or included in application telemetry.
+
+```bash
+npx vercel@latest
+npx vercel@latest --prod
+```
+
+See the [Vercel deployment guide](docs/vercel-deployment.md) for validation commands, Git-based deployments, credential handling, and serverless observability limitations. In-memory traces and audit records are best-effort on Vercel because each function instance has its own short-lived process; production deployments should export them to durable services.
+
 To enable the real LLM agentic workflow, create a fine-grained Hugging Face token with **Make calls to Inference Providers** permission. A free Hugging Face account includes a small monthly inference credit; it is intended for experimentation, not unlimited production traffic. For the local POC, paste the token into the password field in the preview. It is sent only to the local backend for that request and is not placed in browser storage or telemetry.
 
 For a server-managed deployment, configure the token before starting the service:
@@ -149,7 +160,7 @@ When real data is available, keep the classification and recommendation modules 
 - Recommendations are decision support only; no ERP transaction or supplier message is executed.
 - `confidence` is `1.0` because classification is rule-based. A trained probability should replace it only after labeled historical decisions are available.
 - Hosted LLM calls require `HF_TOKEN` and consume Hugging Face inference credits. Automated tests use a deterministic fake model and do not make network requests.
-- The included HTTP server and in-memory telemetry stores are demonstrators, not production infrastructure.
+- The local HTTP server and in-memory telemetry stores are demonstrators, not production infrastructure. On Vercel, telemetry is process-local and may reset on cold starts.
 
 ## Evaluation results
 
@@ -180,6 +191,7 @@ data/                  Synthetic ERP seed data
 examples/              Example API request
 outputs/               Formatted data workbook
 scripts/               Workbook-generation utility
+app.py                 FastAPI/Vercel application entry point
 supply_chain_poc/      Generator, rule engine, and mock API
   agentic/             LLM prompt, tools, schemas, and Responses API loop
 tests/                 Repeatable rule-engine tests

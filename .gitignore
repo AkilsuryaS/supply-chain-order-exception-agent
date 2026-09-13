@@ -5,3 +5,5 @@ outputs/**/*.png
 outputs/**/*.inspect.ndjson
 .DS_Store
 .env
+.venv/
+.vercel/

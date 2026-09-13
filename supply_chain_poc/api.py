@@ -33,7 +33,7 @@ from supply_chain_poc.observability import (
 )
 
 
-DATA_FILE = Path("data/synthetic_orders.csv")
+DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "synthetic_orders.csv"
 WEB_DIR = Path(__file__).parent / "web"
 
 
