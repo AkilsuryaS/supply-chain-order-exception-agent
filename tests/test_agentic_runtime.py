@@ -1,5 +1,6 @@
 import json
 import os
+import ssl
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -9,6 +10,7 @@ from supply_chain_poc.agentic.runtime import (
     AgentConfigurationError,
     HuggingFaceResponseAgent,
     HuggingFaceResponsesClient,
+    ProviderRequestError,
     ProposalGuardrailError,
 )
 from supply_chain_poc.agentic.tools import CsvOrderRepository, SupplyChainTools
@@ -40,6 +42,12 @@ class FakeResponses:
 class FakeClient:
     def __init__(self, responses: list[SimpleNamespace]) -> None:
         self.responses = FakeResponses(responses)
+
+
+class FailingResponses:
+    @staticmethod
+    def create(**_kwargs):
+        raise ProviderRequestError("Hugging Face returned HTTP 401: Invalid credentials")
 
 
 def fake_response(response_id: str, *, calls: list | None = None, output_text: str = "") -> SimpleNamespace:
@@ -222,7 +230,43 @@ class AgenticRuntimeTests(unittest.TestCase):
         request = mocked.call_args.args[0]
         self.assertEqual("https://router.huggingface.co/v1/responses", request.full_url)
         self.assertEqual("Bearer hf_test_token", request.headers["Authorization"])
+        self.assertEqual(ssl.CERT_REQUIRED, mocked.call_args.kwargs["context"].verify_mode)
         self.assertEqual("hf-response", response["id"])
+
+    def test_safe_provider_error_is_preserved_for_the_ui(self):
+        client = SimpleNamespace(responses=FailingResponses())
+        agent = HuggingFaceResponseAgent(
+            client, self.tools, AgentConfig(model="test-model", max_turns=2)
+        )
+
+        with self.assertRaisesRegex(
+            RuntimeError, "Hugging Face returned HTTP 401: Invalid credentials"
+        ):
+            agent.run(self.order_id)
+
+    def test_failed_response_envelope_is_rejected(self):
+        class FailedHTTPResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            @staticmethod
+            def read():
+                return json.dumps(
+                    {
+                        "status": "failed",
+                        "error": {"code": "server_error", "message": "401 Invalid credentials"},
+                    }
+                ).encode()
+
+        client = HuggingFaceResponsesClient(
+            token="hf_test_token", base_url="https://router.huggingface.co/v1"
+        )
+        with patch("supply_chain_poc.agentic.runtime.urlopen", return_value=FailedHTTPResponse()):
+            with self.assertRaisesRegex(ProviderRequestError, "401 Invalid credentials"):
+                client.responses.create(model="test-model", input="hello")
 
 
 if __name__ == "__main__":

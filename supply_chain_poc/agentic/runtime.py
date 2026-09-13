@@ -4,11 +4,14 @@ import json
 import logging
 import os
 import re
+import ssl
 import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+import certifi
 
 from supply_chain_poc.agentic.prompts import AGENT_INSTRUCTIONS
 from supply_chain_poc.agentic.schemas import PROPOSAL_SCHEMA, ProposalGuardrailError, validate_proposal
@@ -27,6 +30,10 @@ class AgentConfigurationError(RuntimeError):
 
 class AgentRunError(RuntimeError):
     pass
+
+
+class ProviderRequestError(RuntimeError):
+    """Safe provider-facing error that never contains request credentials."""
 
 
 @dataclass(frozen=True)
@@ -59,6 +66,7 @@ class HuggingFaceResponsesClient:
         self.token = token
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.ssl_context = ssl.create_default_context(cafile=certifi.where())
         self.responses = self
 
     def create(self, **payload: Any) -> dict:
@@ -72,7 +80,7 @@ class HuggingFaceResponsesClient:
             method="POST",
         )
         try:
-            with urlopen(request, timeout=self.timeout) as response:
+            with urlopen(request, timeout=self.timeout, context=self.ssl_context) as response:
                 result = json.loads(response.read())
         except HTTPError as exc:
             message = f"Hugging Face returned HTTP {exc.code}"
@@ -84,11 +92,24 @@ class HuggingFaceResponsesClient:
                     message = f"{message}: {details}"
             except (json.JSONDecodeError, AttributeError):
                 pass
-            raise RuntimeError(message) from exc
+            raise ProviderRequestError(message) from exc
         except URLError as exc:
-            raise RuntimeError("Could not reach the configured Hugging Face inference endpoint") from exc
+            if isinstance(exc.reason, ssl.SSLCertVerificationError):
+                raise ProviderRequestError(
+                    "TLS certificate verification failed while connecting to Hugging Face"
+                ) from exc
+            raise ProviderRequestError("Could not reach the configured Hugging Face inference endpoint") from exc
         if not isinstance(result, dict):
-            raise RuntimeError("Hugging Face returned an invalid response")
+            raise ProviderRequestError("Hugging Face returned an invalid response")
+        if result.get("status") == "failed" or result.get("error"):
+            error = result.get("error") or {}
+            if isinstance(error, dict):
+                code = error.get("code", "provider_error")
+                message = error.get("message", "The inference request failed")
+            else:
+                code = "provider_error"
+                message = str(error)
+            raise ProviderRequestError(f"Hugging Face response failed ({code}): {message}")
         return result
 
 
@@ -155,7 +176,8 @@ class HuggingFaceResponseAgent:
                 )
             except Exception as exc:
                 METRICS.increment("supply_chain_llm_model_calls_total", {"model": self.config.model, "status": "failure"})
-                raise AgentRunError(f"Model request failed: {type(exc).__name__}") from exc
+                detail = str(exc) if isinstance(exc, ProviderRequestError) else type(exc).__name__
+                raise AgentRunError(f"Model request failed: {detail}") from exc
             duration = time.perf_counter() - started
             active_span.set_attribute("response_id", _field(response, "id"))
             METRICS.increment("supply_chain_llm_model_calls_total", {"model": self.config.model, "status": "success"})
@@ -312,5 +334,6 @@ __all__ = [
     "AgentRunError",
     "HuggingFaceResponseAgent",
     "HuggingFaceResponsesClient",
+    "ProviderRequestError",
     "ProposalGuardrailError",
 ]

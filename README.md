@@ -52,9 +52,10 @@ The synthetic dataset is deterministic and includes a ground-truth `expected_exc
 
 ## Quick start
 
-Python 3.11 or newer is the only runtime requirement.
+Use Python 3.11 or newer. The sole runtime package supplies a maintained TLS certificate bundle.
 
 ```bash
+python -m pip install -e .
 python -m supply_chain_poc.data_generator
 python -m unittest discover -s tests -v
 python -m supply_chain_poc.api --port 8000
@@ -72,7 +73,7 @@ export HF_MODEL='Qwen/Qwen3-32B:cheapest'
 python -m supply_chain_poc.api --port 8000
 ```
 
-No OpenAI account, API key, model, or SDK is used. The HTTP client is implemented with Python's standard library and calls the Hugging Face router directly. To self-host instead, point `HF_BASE_URL` at a Responses-compatible gateway serving a Hugging Face model; tokens are optional for a trusted local endpoint.
+No OpenAI account, API key, model, or SDK is used. The HTTP client uses Python's standard library plus `certifi` for verified TLS and calls the Hugging Face router directly. To self-host instead, point `HF_BASE_URL` at a Responses-compatible gateway serving a Hugging Face model; tokens are optional for a trusted local endpoint.
 
 The bring-your-own-token UI is intended for localhost study and HTTPS-protected demos. A production service should normally keep provider credentials server-side or use delegated authorization rather than collecting personal access tokens from end users.
 

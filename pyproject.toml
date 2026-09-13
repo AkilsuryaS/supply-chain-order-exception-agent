@@ -1,8 +1,9 @@
 [project]
 name = "supply-chain-exception-poc"
-version = "0.5.0"
+version = "0.5.3"
 description = "POC for detecting and recommending actions for supply-chain order exceptions"
 requires-python = ">=3.11"
+dependencies = ["certifi>=2024.8.30"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

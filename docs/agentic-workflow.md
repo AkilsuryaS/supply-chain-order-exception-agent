@@ -88,7 +88,7 @@ curl -X POST 'http://127.0.0.1:8000/agent/llm-triage' \
   --data @examples/llm_request.json
 ```
 
-The endpoint uses the request token when supplied and otherwise falls back to server-side `HF_TOKEN`. It fails with `503` when the hosted router token is missing or malformed. It does not disguise a deterministic response as an LLM result. The client uses only the Python standard library; no OpenAI SDK or account is required.
+The endpoint uses the request token when supplied and otherwise falls back to server-side `HF_TOKEN`. It fails with `503` when the hosted router token is missing or malformed. It does not disguise a deterministic response as an LLM result. The client uses Python's standard library plus a maintained CA bundle for verified TLS; no OpenAI SDK or account is required.
 
 For local or private deployment, run an open-weight Hugging Face model behind a Responses-compatible inference gateway and configure:
 
